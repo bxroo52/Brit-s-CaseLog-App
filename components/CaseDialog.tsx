@@ -29,7 +29,7 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
   const [form, setForm] = useState<LocalCaseForm>(() => ({
     respondentName: existingCase?.respondentName || '',
     caseNumber: existingCase?.caseNumber || '',
-    assignmentType: existingCase?.assignmentType || 'Initial Review',
+    assignmentType: ((existingCase?.assignmentType as any) === 'Initial Review' ? 'Initial' : existingCase?.assignmentType) || 'Initial',
     status: existingCase?.status || 'Open',
     hourlyRate: existingCase ? existingCase.hourlyRate.toString() : '',
     firstTimeBilling: existingCase?.firstTimeBilling ?? false,
@@ -44,7 +44,7 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
       setForm({
         respondentName: existingCase?.respondentName || '',
         caseNumber: existingCase?.caseNumber || '',
-        assignmentType: existingCase?.assignmentType || 'Initial Review',
+        assignmentType: ((existingCase?.assignmentType as any) === 'Initial Review' ? 'Initial' : existingCase?.assignmentType) || 'Initial',
         status: existingCase?.status || 'Open',
         hourlyRate: existingCase ? existingCase.hourlyRate.toString() : '',
         firstTimeBilling: existingCase?.firstTimeBilling ?? false,
@@ -85,7 +85,7 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
         setForm({
           respondentName: '',
           caseNumber: '',
-          assignmentType: 'Initial Review',
+          assignmentType: 'Initial',
           status: 'Open',
           hourlyRate: '',
           firstTimeBilling: false,

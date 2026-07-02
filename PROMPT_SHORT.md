@@ -19,7 +19,7 @@ You are Grok Build. Build a complete, production-ready, offline-first web app ca
 Data models (strict interfaces):
 
 ```ts
-interface Case { id, respondentName, caseNumber (text), assignmentType: 'Initial Review'|'Review'|'Three-Year Review'|'Medication', status: 'Open'|'Closed', hourlyRate, firstTimeBilling, caseNotes?, createdAt, updatedAt }
+interface Case { id, respondentName, caseNumber (text), assignmentType: 'Initial'|'Review'|'Three-Year Review'|'Medication', status: 'Open'|'Closed', hourlyRate, firstTimeBilling, caseNotes?, createdAt, updatedAt }
 interface TimeEntry { id, caseId, date (YYYY-MM-DD), activityType: 'Contact'|'Home Visit'|'Court'|'Research'|'Report Writing'|'Drive Time'|'Wait Time'|'Other', billableHours, billableHoursRounded (nearest 0.1), hourlyRate (snapshot), amount, description, startTime?, endTime?, billingMonth (YYYY-MM), billingStatus: 'Pending'|'Billed' }
 interface Expense { id, caseId, date, expenseType: 'Parking'|'Certified Mail'|'Copies'|'Postage'|'Mileage'|'Other', description, amount }
 ```

@@ -3,7 +3,7 @@
  */
 
 export type AssignmentType =
-  | 'Initial Review'
+  | 'Initial'
   | 'Review'
   | 'Three-Year Review'
   | 'Medication';
