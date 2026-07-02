@@ -4,6 +4,8 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { PWARegister } from "@/components/PWARegister";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ThemeProvider } from "next-themes";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -52,12 +54,17 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <OfflineBanner />
-        {children}
-        <Toaster position="top-center" richColors closeButton />
-        <PWARegister />
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem={true}>
+          <OfflineBanner />
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
+          <Toaster position="top-center" richColors closeButton />
+          <PWARegister />
+        </ThemeProvider>
       </body>
     </html>
   );

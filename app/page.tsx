@@ -147,21 +147,36 @@ export default function CaseLogApp() {
 
   const handleDeleteCase = async (c: Case) => {
     if (!confirm(`Delete case ${c.caseNumber} and ALL its logs? This cannot be undone.`)) return;
-    await removeCase(c.id);
-    toast('Case and associated logs deleted. Poof.');
+    try {
+      await removeCase(c.id);
+      toast('Case and associated logs deleted. Poof.');
+    } catch (err) {
+      toast.error('Failed to delete case. Please try again.');
+      console.error(err);
+    }
   };
 
   const handleDeleteTime = async (t: TimeEntry) => {
     if (t.billingStatus === 'Billed') {
       if (!confirm('This entry is already marked Billed. Delete anyway?')) return;
     }
-    await removeTimeEntry(t.id);
-    toast('Time entry deleted.');
+    try {
+      await removeTimeEntry(t.id);
+      toast('Time entry deleted.');
+    } catch (err) {
+      toast.error('Failed to delete time entry.');
+      console.error(err);
+    }
   };
 
   const handleDeleteExpense = async (e: Expense) => {
-    await removeExpense(e.id);
-    toast('Expense deleted.');
+    try {
+      await removeExpense(e.id);
+      toast('Expense deleted.');
+    } catch (err) {
+      toast.error('Failed to delete expense.');
+      console.error(err);
+    }
   };
 
   const editTimeEntry = (t: TimeEntry) => {

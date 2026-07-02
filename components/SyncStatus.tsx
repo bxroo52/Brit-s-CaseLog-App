@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/stores/useAppStore';
 import { Cloud, CloudOff, RefreshCw, AlertTriangle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { useState, useEffect } from 'react';
 
 export function SyncStatus() {
   const { isOnline, isSyncing, pendingChangesCount, lastSync, syncNow } = useSync();
@@ -30,9 +31,16 @@ export function SyncStatus() {
     color = 'text-orange-600';
   }
 
-  const lastSyncText = lastSync
-    ? formatDistanceToNow(new Date(lastSync), { addSuffix: true })
-    : 'never';
+  // Compute lastSyncText only on client to avoid hydration mismatch (time-based)
+  const [lastSyncText, setLastSyncText] = useState('never');
+
+  useEffect(() => {
+    if (lastSync) {
+      setLastSyncText(formatDistanceToNow(new Date(lastSync), { addSuffix: true }));
+    } else {
+      setLastSyncText('never');
+    }
+  }, [lastSync]);
 
   return (
     <div className="flex items-center gap-2 text-xs">

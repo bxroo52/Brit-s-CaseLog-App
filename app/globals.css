@@ -144,6 +144,24 @@
   }
 }
 
+/* Dark mode polish */
+.dark .money {
+  color: #a1a1aa;
+}
+.dark .log-card {
+  background-color: #18181b;
+  border-color: #3f3f46;
+}
+.dark .invoice-table th {
+  background-color: #27272a;
+}
+.dark table {
+  background-color: #18181b;
+}
+.dark .empty-state {
+  color: #a1a1aa;
+}
+
 /* CaseLog custom polish - clean, professional, billing-obsessed */
 @layer components {
   .section-title {

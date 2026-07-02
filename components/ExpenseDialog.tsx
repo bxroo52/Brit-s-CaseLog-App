@@ -112,7 +112,43 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
                 </SelectContent>
               </Select>
               {form.expenseType === 'Mileage' && (
-                <p className="text-[10px] text-muted-foreground mt-1">Use the description field for actual miles. Reimbursed per Alaska Court direction / IRS rate.</p>
+                <div className="mt-2 space-y-2 text-xs">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[10px]">Miles</Label>
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="14"
+                        className="h-8 text-xs"
+                        onChange={(e) => {
+                          const miles = parseFloat(e.target.value) || 0;
+                          const rate = parseFloat((document.getElementById('mileage-rate') as HTMLInputElement)?.value) || 0.67;
+                          const calc = miles * rate;
+                          setForm({ ...form, amount: calc });
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Rate $/mi</Label>
+                      <Input
+                        id="mileage-rate"
+                        type="text"
+                        inputMode="decimal"
+                        defaultValue="0.67"
+                        placeholder="0.67"
+                        className="h-8 text-xs"
+                        onChange={(e) => {
+                          const milesEl = document.querySelector('input[placeholder="14"]') as HTMLInputElement;
+                          const miles = parseFloat(milesEl?.value) || 0;
+                          const rate = parseFloat(e.target.value) || 0.67;
+                          setForm({ ...form, amount: miles * rate });
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Auto-fills amount. Update description with actual miles + rate used.</p>
+                </div>
               )}
             </div>
           </div>
@@ -122,10 +158,20 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
             <div className="relative mt-1.5">
               <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
               <Input
-                type="number"
-                step="0.01"
-                value={form.amount}
-                onChange={(e) => setForm({ ...form, amount: parseFloat(e.target.value) || 0 })}
+                type="text"
+                inputMode="decimal"
+                pattern="[0-9]*\.?[0-9]*"
+                value={form.amount === 0 ? '' : form.amount.toString()}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '') {
+                    setForm({ ...form, amount: 0 });
+                  } else {
+                    const num = parseFloat(val.replace(',', '.'));
+                    setForm({ ...form, amount: isNaN(num) ? 0 : num });
+                  }
+                }}
+                placeholder="0.00"
                 className="pl-7"
               />
             </div>
@@ -133,6 +179,18 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
 
           <div>
             <Label>Description / Receipt Note</Label>
+            <div className="flex flex-wrap gap-1 mb-1.5">
+              {['Parking at courthouse', 'Certified mail', 'Copies for court', 'Postage', 'Round trip mileage'].map((phrase) => (
+                <button
+                  key={phrase}
+                  type="button"
+                  onClick={() => setForm({ ...form, description: form.description ? form.description + ' ' + phrase : phrase })}
+                  className="text-[10px] px-2 py-0.5 rounded-full bg-muted hover:bg-muted/80 border"
+                >
+                  {phrase}
+                </button>
+              ))}
+            </div>
             <Textarea
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}

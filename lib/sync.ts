@@ -1,5 +1,6 @@
 import { db, SyncQueueItem } from './db';
 import { supabase } from './supabase';
+import { toast } from 'sonner';
 
 // --- Queue a change (call AFTER the optimistic local Dexie write) ---
 export async function queueChange(
@@ -152,6 +153,11 @@ export async function syncNow() {
     localStorage.setItem(lastSyncKey, new Date().toISOString());
   }
 
+  const total = pushResult.processed + pullResult.pulled;
+  if (total > 0) {
+    toast.success(`Synced ${pushResult.processed} changes • pulled ${pullResult.pulled}`);
+  }
+
   return {
     success: pushResult.processed > 0 || pullResult.pulled > 0,
     processed: pushResult.processed,
@@ -211,6 +217,7 @@ export async function clearAllLocalData() {
 // Auto-sync when we come back online
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
+    toast.info('Back online — syncing changes...');
     syncNow();
   });
 }

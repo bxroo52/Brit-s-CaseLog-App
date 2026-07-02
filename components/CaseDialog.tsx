@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,34 +22,61 @@ interface CaseDialogProps {
 export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps) {
   const { addCase, editCase } = useAppStore();
 
-  const [form, setForm] = useState<CaseFormData>(() => ({
+  interface LocalCaseForm extends Omit<CaseFormData, 'hourlyRate'> {
+    hourlyRate: string; // always string for controlled text input (empty allowed)
+  }
+
+  const [form, setForm] = useState<LocalCaseForm>(() => ({
     respondentName: existingCase?.respondentName || '',
     caseNumber: existingCase?.caseNumber || '',
     assignmentType: existingCase?.assignmentType || 'Initial Review',
     status: existingCase?.status || 'Open',
-    hourlyRate: existingCase?.hourlyRate || 85,
+    hourlyRate: existingCase ? existingCase.hourlyRate.toString() : '',
     firstTimeBilling: existingCase?.firstTimeBilling ?? false,
     caseNotes: existingCase?.caseNotes || '',
   }));
 
   const isEditing = !!existingCase;
 
+  // Sync form when dialog opens or case changes (important for switching new/edit)
+  useEffect(() => {
+    if (open) {
+      setForm({
+        respondentName: existingCase?.respondentName || '',
+        caseNumber: existingCase?.caseNumber || '',
+        assignmentType: existingCase?.assignmentType || 'Initial Review',
+        status: existingCase?.status || 'Open',
+        hourlyRate: existingCase ? existingCase.hourlyRate.toString() : '',
+        firstTimeBilling: existingCase?.firstTimeBilling ?? false,
+        caseNotes: existingCase?.caseNotes || '',
+      });
+    }
+  }, [open, existingCase]);
+
   const handleSubmit = async () => {
     if (!form.respondentName.trim() || !form.caseNumber.trim()) {
       toast.error('Respondent name and case number are required.');
       return;
     }
-    if (form.hourlyRate <= 0) {
-      toast.error('Hourly rate must be greater than zero.');
+
+    const rateStr = form.hourlyRate.trim();
+    const num = parseFloat(rateStr.replace(',', '.'));
+    if (!rateStr || isNaN(num) || num <= 0) {
+      toast.error('Hourly rate is required.');
       return;
     }
 
+    const submitData: CaseFormData = {
+      ...form,
+      hourlyRate: num,
+    };
+
     try {
       if (isEditing && existingCase) {
-        await editCase(existingCase.id, form);
+        await editCase(existingCase.id, submitData);
         toast.success('Case updated. Future You is pleased.');
       } else {
-        await addCase(form);
+        await addCase(submitData);
         toast.success('Case created. Go log your shit.');
       }
       onOpenChange(false);
@@ -60,7 +87,7 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
           caseNumber: '',
           assignmentType: 'Initial Review',
           status: 'Open',
-          hourlyRate: 85,
+          hourlyRate: '',
           firstTimeBilling: false,
           caseNotes: '',
         });
@@ -124,12 +151,41 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
               <div className="relative mt-1.5">
                 <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
                 <Input
-                  type="number"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]*\.?[0-9]*"
                   value={form.hourlyRate}
-                  onChange={(e) => setForm({ ...form, hourlyRate: parseFloat(e.target.value) || 0 })}
-                  className="pl-7"
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    // Only allow digits and at most one dot (or comma)
+                    val = val.replace(/[^0-9.,]/g, '').replace(',', '.');
+                    const parts = val.split('.');
+                    if (parts.length > 2) {
+                      val = parts[0] + '.' + parts[1];
+                    }
+                    setForm({ ...form, hourlyRate: val });
+                  }}
+                  onBlur={() => {
+                    if (form.hourlyRate) {
+                      const num = parseFloat(form.hourlyRate);
+                      if (!isNaN(num)) {
+                        setForm({ ...form, hourlyRate: num.toString() });
+                      }
+                    }
+                  }}
+                  placeholder="$0.00"
+                  className="pl-7 pr-8"
                 />
+                {form.hourlyRate && (
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, hourlyRate: '' })}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-sm leading-none"
+                    aria-label="Clear hourly rate"
+                  >
+                    ×
+                  </button>
+                )}
               </div>
             </div>
           </div>

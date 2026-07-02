@@ -213,11 +213,20 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
             </div>
             <div className="flex items-center gap-2 mt-1.5">
               <Input
-                type="number"
-                step="0.1"
-                min="0.1"
-                value={form.billableHours}
-                onChange={(e) => setForm({ ...form, billableHours: parseFloat(e.target.value) || 0 })}
+                type="text"
+                inputMode="decimal"
+                pattern="[0-9]*\.?[0-9]*"
+                value={form.billableHours === 0 ? '' : form.billableHours.toString()}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '') {
+                    setForm({ ...form, billableHours: 0 });
+                  } else {
+                    const num = parseFloat(val.replace(',', '.'));
+                    setForm({ ...form, billableHours: isNaN(num) ? 0 : num });
+                  }
+                }}
+                placeholder="0.0"
               />
               <div className="text-xs w-28 text-right text-muted-foreground">
                 Rounded: <span className="font-mono font-semibold text-foreground">{roundedPreview.toFixed(1)}</span>
@@ -256,6 +265,18 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
 
           <div>
             <Label>Description</Label>
+            <div className="flex flex-wrap gap-1 mb-1.5">
+              {['Home visit', 'Court appearance', 'Report writing', 'Phone call', 'Travel time'].map((phrase) => (
+                <button
+                  key={phrase}
+                  type="button"
+                  onClick={() => setForm({ ...form, description: form.description ? form.description + ' ' + phrase : phrase })}
+                  className="text-[10px] px-2 py-0.5 rounded-full bg-muted hover:bg-muted/80 border"
+                >
+                  {phrase}
+                </button>
+              ))}
+            </div>
             <Textarea
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}

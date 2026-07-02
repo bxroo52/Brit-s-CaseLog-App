@@ -3,15 +3,23 @@
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useSync } from '@/hooks/useSync';
 import { WifiOff } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 export function OfflineBanner() {
+  const [mounted, setMounted] = useState(false);
   const isOnline = useOnlineStatus();
   const { pendingChangesCount } = useSync();
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Render nothing on server / first client render to match SSR HTML
+  if (!mounted) return null;
   if (isOnline) return null;
 
   return (
-    <div className="bg-amber-600 text-white text-center py-1.5 px-4 text-xs sm:text-sm flex items-center justify-center gap-2 z-50">
+    <div className="bg-amber-600 text-white text-center py-1.5 px-4 text-xs sm:text-sm flex items-center justify-center gap-2 z-50" suppressHydrationWarning>
       <WifiOff className="h-3.5 w-3.5 flex-shrink-0" />
       <span>
         You're offline — all changes saved locally. 
