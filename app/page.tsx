@@ -333,8 +333,7 @@ export default function CaseLogApp() {
         <CardContent>
           {openCases.length === 0 ? (
             <div className="empty-state py-8">
-              <p className="humor">No open cases. Your paycheck is trapped behind paperwork.</p>
-              <Button onClick={openNewCase} className="mt-4 gap-2"><Plus className="h-4 w-4" /> New Case</Button>
+              <Button onClick={openNewCase} className="gap-2"><Plus className="h-4 w-4" /> New Case</Button>
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
