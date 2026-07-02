@@ -1,0 +1,276 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ACTIVITY_TYPES } from '@/lib/constants';
+import { TimeEntryFormData, Case } from '@/types';
+import { useAppStore } from '@/stores/useAppStore';
+import { toast } from 'sonner';
+import { Play, Square } from 'lucide-react';
+import { format } from 'date-fns';
+import { formatCurrency } from '@/lib/format';
+
+interface TimeLogDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  defaultCaseId?: string;
+  existingEntry?: any; // partial TimeEntry for editing
+}
+
+export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry }: TimeLogDialogProps) {
+  const { cases, addTimeEntry, editTimeEntry, getCaseById } = useAppStore();
+
+  const openCases = cases.filter((c) => c.status === 'Open');
+
+  const [form, setForm] = useState<TimeEntryFormData>({
+    caseId: defaultCaseId || (openCases[0]?.id ?? ''),
+    date: format(new Date(), 'yyyy-MM-dd'),
+    activityType: 'Home Visit',
+    billableHours: 1,
+    description: '',
+    startTime: '',
+    endTime: '',
+  });
+
+  const [isTiming, setIsTiming] = useState(false);
+  const [timerStart, setTimerStart] = useState<Date | null>(null);
+  const [liveHours, setLiveHours] = useState(0);
+
+  const selectedCase = getCaseById(form.caseId);
+  const roundedPreview = Math.round(form.billableHours * 10) / 10;
+  const amountPreview = selectedCase ? roundedPreview * selectedCase.hourlyRate : 0;
+
+  // Populate when editing
+  useEffect(() => {
+    if (existingEntry) {
+      setForm({
+        caseId: existingEntry.caseId,
+        date: existingEntry.date,
+        activityType: existingEntry.activityType,
+        billableHours: existingEntry.billableHours,
+        description: existingEntry.description,
+        startTime: existingEntry.startTime || '',
+        endTime: existingEntry.endTime || '',
+      });
+    } else if (defaultCaseId) {
+      setForm((f) => ({ ...f, caseId: defaultCaseId }));
+    }
+  }, [existingEntry, defaultCaseId]);
+
+  // Live timer
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isTiming && timerStart) {
+      interval = setInterval(() => {
+        const elapsed = (Date.now() - timerStart.getTime()) / 1000 / 60 / 60;
+        setLiveHours(Math.max(0, elapsed));
+        setForm((f) => ({ ...f, billableHours: Math.max(f.billableHours, Math.round(elapsed * 10) / 10) }));
+      }, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [isTiming, timerStart]);
+
+  const toggleTimer = () => {
+    if (!isTiming) {
+      const now = new Date();
+      setTimerStart(now);
+      setIsTiming(true);
+      const hh = now.getHours().toString().padStart(2, '0');
+      const mm = now.getMinutes().toString().padStart(2, '0');
+      setForm((f) => ({ ...f, startTime: `${hh}:${mm}` }));
+      toast.info('Timer started. Go do the thing.');
+    } else {
+      const now = new Date();
+      const hh = now.getHours().toString().padStart(2, '0');
+      const mm = now.getMinutes().toString().padStart(2, '0');
+      setForm((f) => ({ ...f, endTime: `${hh}:${mm}` }));
+      setIsTiming(false);
+      setTimerStart(null);
+      toast.success('Timer stopped. Log it before you forget.');
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!form.caseId) {
+      toast.error('Select a case.');
+      return;
+    }
+    if (!form.date) {
+      toast.error('Date is required.');
+      return;
+    }
+    if (form.billableHours <= 0) {
+      toast.error('Hours must be greater than zero.');
+      return;
+    }
+    if (!form.description.trim()) {
+      toast.error('Add a short description. Payroll isn\'t psychic.');
+      return;
+    }
+
+    try {
+      if (existingEntry) {
+        await editTimeEntry(existingEntry.id, {
+          ...form,
+          billableHours: form.billableHours,
+        } as any);
+        toast.success('Time entry updated.');
+      } else {
+        await addTimeEntry({
+          ...form,
+          billableHours: form.billableHours,
+        });
+        toast.success('Logged. Tiny logs beat giant catch-up sessions.');
+      }
+      onOpenChange(false);
+      resetForm();
+    } catch (e) {
+      toast.error('Could not save time entry.');
+    }
+  };
+
+  const resetForm = () => {
+    setForm({
+      caseId: defaultCaseId || (openCases[0]?.id ?? ''),
+      date: format(new Date(), 'yyyy-MM-dd'),
+      activityType: 'Home Visit',
+      billableHours: 1,
+      description: '',
+      startTime: '',
+      endTime: '',
+    });
+    setIsTiming(false);
+    setTimerStart(null);
+    setLiveHours(0);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) resetForm(); onOpenChange(o); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{existingEntry ? 'Edit Time Entry' : 'Log Time'}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div>
+            <Label>Case</Label>
+            <Select value={form.caseId} onValueChange={(v) => v && setForm({ ...form, caseId: v })}>
+              <SelectTrigger className="mt-1.5">
+                <SelectValue placeholder="Choose case" />
+              </SelectTrigger>
+              <SelectContent>
+                {openCases.length === 0 && <div className="p-2 text-sm text-muted-foreground">No open cases. Create one first.</div>}
+                {openCases.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.respondentName} — {c.caseNumber}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Date</Label>
+              <Input
+                type="date"
+                value={form.date}
+                onChange={(e) => setForm({ ...form, date: e.target.value })}
+                className="mt-1.5"
+              />
+            </div>
+            <div>
+              <Label>Activity</Label>
+              <Select value={form.activityType} onValueChange={(v) => setForm({ ...form, activityType: v as any })}>
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ACTIVITY_TYPES.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between">
+              <Label>Billable Hours</Label>
+              <Button
+                type="button"
+                variant={isTiming ? 'destructive' : 'outline'}
+                size="sm"
+                onClick={toggleTimer}
+                className="gap-1.5 h-7"
+              >
+                {isTiming ? <Square className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                {isTiming ? 'Stop Timer' : 'Start Timer'}
+              </Button>
+            </div>
+            <div className="flex items-center gap-2 mt-1.5">
+              <Input
+                type="number"
+                step="0.1"
+                min="0.1"
+                value={form.billableHours}
+                onChange={(e) => setForm({ ...form, billableHours: parseFloat(e.target.value) || 0 })}
+              />
+              <div className="text-xs w-28 text-right text-muted-foreground">
+                Rounded: <span className="font-mono font-semibold text-foreground">{roundedPreview.toFixed(1)}</span>
+              </div>
+            </div>
+            {selectedCase && (
+              <div className="text-right text-xs mt-0.5 text-muted-foreground">
+                {formatCurrency(amountPreview)} @ {formatCurrency(selectedCase.hourlyRate)}/hr
+              </div>
+            )}
+            {isTiming && (
+              <div className="text-[10px] text-amber-600 mt-1">Timer running — values update live. Stop when done.</div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Start (optional)</Label>
+              <Input
+                type="time"
+                value={form.startTime}
+                onChange={(e) => setForm({ ...form, startTime: e.target.value })}
+                className="mt-1.5"
+              />
+            </div>
+            <div>
+              <Label>End (optional)</Label>
+              <Input
+                type="time"
+                value={form.endTime}
+                onChange={(e) => setForm({ ...form, endTime: e.target.value })}
+                className="mt-1.5"
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label>Description</Label>
+            <Textarea
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              placeholder="What happened? Be specific for the invoice monster."
+              className="mt-1.5"
+              rows={2}
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSubmit}>{existingEntry ? 'Update Entry' : 'Log Time'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
