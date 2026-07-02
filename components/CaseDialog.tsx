@@ -140,6 +140,7 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  {/* Render in exact desired order from ASSIGNMENT_TYPES */}
                   {ASSIGNMENT_TYPES.map((t) => (
                     <SelectItem key={t} value={t}>{t}</SelectItem>
                   ))}

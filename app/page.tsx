@@ -72,6 +72,7 @@ export default function CaseLogApp() {
     removeCase,
     removeTimeEntry,
     removeExpense,
+    editCase,
     pendingChangesCount,
   } = useAppStore();
 
@@ -143,6 +144,17 @@ export default function CaseLogApp() {
   const openNewCase = () => {
     setEditingCase(undefined);
     setCaseDialogOpen(true);
+  };
+
+  const handleToggleStatus = async (c: Case) => {
+    const newStatus = c.status === 'Open' ? 'Closed' : 'Open';
+    try {
+      await editCase(c.id, { status: newStatus });
+      toast.success(`Case ${newStatus === 'Open' ? 'reopened' : 'closed'}.`);
+    } catch (err) {
+      toast.error('Failed to update status.');
+      console.error(err);
+    }
   };
 
   const handleDeleteCase = async (c: Case) => {
@@ -327,17 +339,7 @@ export default function CaseLogApp() {
           {openCases.length === 0 ? (
             <div className="empty-state py-8">
               <p className="humor">No open cases. Your paycheck is trapped behind paperwork.</p>
-              <div className="flex gap-3 mt-4">
-                <Button onClick={openNewCase} className="gap-2"><Plus className="h-4 w-4" /> New Case</Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    useAppStore.getState().seedDemoData();
-                  }}
-                >
-                  Load sample data
-                </Button>
-              </div>
+              <Button onClick={openNewCase} className="mt-4 gap-2"><Plus className="h-4 w-4" /> New Case</Button>
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -435,8 +437,51 @@ export default function CaseLogApp() {
         <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(''); setStatusFilter('All'); }}>Clear</Button>
       </div>
 
-      <div className="rounded-xl border overflow-hidden">
-        <Table>
+      {/* Mobile: Stack into cards for better experience */}
+      <div className="md:hidden space-y-3">
+        {filteredCases.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground border rounded-xl">No cases match. Maybe create one?</div>
+        )}
+        {filteredCases.map((c) => (
+          <div key={c.id} className="border rounded-xl p-3 bg-card">
+            <div className="flex justify-between items-start gap-2">
+              <div>
+                <div className="font-medium">{c.respondentName}</div>
+                <div className="text-xs font-mono text-muted-foreground">{c.caseNumber}</div>
+                <div className="text-xs mt-0.5">{c.assignmentType}</div>
+              </div>
+              <div>
+                <button
+                  onClick={() => handleToggleStatus(c)}
+                  className="focus:outline-none"
+                >
+                  <Badge
+                    className={c.status === 'Open' 
+                      ? 'bg-green-600 hover:bg-green-700 text-white cursor-pointer' 
+                      : 'bg-gray-500 hover:bg-gray-600 text-white cursor-pointer'
+                    }
+                  >
+                    {c.status}
+                  </Badge>
+                </button>
+                {c.firstTimeBilling && <Badge variant="outline" className="ml-1 text-[10px]">First</Badge>}
+              </div>
+            </div>
+            <div className="mt-1 text-xs font-mono text-right">{formatCurrency(c.hourlyRate)}</div>
+
+            <div className="mt-2 flex gap-1 flex-wrap text-xs">
+              <Button size="sm" variant="ghost" onClick={() => quickLogTime(c.id)} className="h-7 px-2 text-[10px]">+ Time</Button>
+              <Button size="sm" variant="ghost" onClick={() => quickLogExpense(c.id)} className="h-7 px-2 text-[10px]">+ Exp</Button>
+              <Button size="sm" variant="ghost" onClick={() => openEditCase(c)} className="h-7 px-1"><Edit2 className="h-3 w-3" /></Button>
+              <Button size="sm" variant="ghost" className="text-destructive h-7 px-1" onClick={() => handleDeleteCase(c)}><Trash2 className="h-3 w-3" /></Button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop: Table with horizontal scroll on smaller screens */}
+      <div className="hidden md:block rounded-xl border overflow-x-auto">
+        <Table className="min-w-full">
           <TableHeader>
             <TableRow>
               <TableHead>Respondent</TableHead>
@@ -461,7 +506,19 @@ export default function CaseLogApp() {
                   <TableCell>{c.assignmentType}</TableCell>
                   <TableCell className="text-right font-mono">{formatCurrency(c.hourlyRate)}</TableCell>
                   <TableCell>
-                    <Badge variant={c.status === 'Open' ? 'default' : 'secondary'}>{c.status}</Badge>
+                    <button
+                      onClick={() => handleToggleStatus(c)}
+                      className="focus:outline-none"
+                    >
+                      <Badge 
+                        className={c.status === 'Open' 
+                          ? 'bg-green-600 hover:bg-green-700 text-white cursor-pointer' 
+                          : 'bg-gray-500 hover:bg-gray-600 text-white cursor-pointer'
+                        }
+                      >
+                        {c.status}
+                      </Badge>
+                    </button>
                     {c.firstTimeBilling && <Badge variant="outline" className="ml-1">First-time</Badge>}
                   </TableCell>
                   <TableCell className="text-right">
@@ -478,7 +535,7 @@ export default function CaseLogApp() {
           </TableBody>
         </Table>
       </div>
-      <p className="text-[10px] mt-2 text-muted-foreground">Deleting a case removes its time and expense records too.</p>
+      <p className="text-[10px] mt-2 text-muted-foreground">Deleting a case removes its time and expense records too. Tap status badge to toggle Open/Closed.</p>
     </div>
   );
 

@@ -1,10 +1,10 @@
 import { ActivityType, AssignmentType, ExpenseType } from '@/types';
 
 export const ASSIGNMENT_TYPES: AssignmentType[] = [
-  'Initial Review',
-  'Review',
-  'Three-Year Review',
-  'Medication',
+  'Initial Review',      // 1. Initial
+  'Review',              // 2. Review
+  'Three-Year Review',   // 3. Three-Year Review
+  'Medication',          // 4. Medication
 ];
 
 export const ACTIVITY_TYPES: ActivityType[] = [
