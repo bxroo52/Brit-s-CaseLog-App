@@ -13,6 +13,16 @@ import { CaseFormData, Case } from '@/types';
 import { useAppStore } from '@/stores/useAppStore';
 import { toast } from 'sonner';
 
+// Normalize legacy assignment types (e.g. old "Initial Review" data) to current exact labels.
+// Value stored/used is always one of the ASSIGNMENT_TYPES (sensible short strings like "Initial").
+function normalizeAssignmentType(val: any): 'Initial' | 'Review' | 'Three-Year Review' | 'Medication' {
+  if (!val) return 'Initial';
+  if (val === 'Initial Review' || val === 'InitialReview') return 'Initial';
+  // If it's already a valid one from current constant, keep; else default
+  if (ASSIGNMENT_TYPES.includes(val as any)) return val as any;
+  return 'Initial';
+}
+
 interface CaseDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -27,7 +37,7 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
   const [form, setForm] = useState<LocalCaseForm>(() => ({
     respondentName: existingCase?.respondentName || '',
     caseNumber: existingCase?.caseNumber || '',
-    assignmentType: ((existingCase?.assignmentType as any) === 'Initial Review' ? 'Initial' : existingCase?.assignmentType) || 'Initial',
+    assignmentType: normalizeAssignmentType(existingCase?.assignmentType) || 'Initial',
     status: existingCase?.status || 'Open',
     firstTimeBilling: existingCase?.firstTimeBilling ?? false,
     caseNotes: existingCase?.caseNotes || '',
@@ -41,7 +51,7 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
       setForm({
         respondentName: existingCase?.respondentName || '',
         caseNumber: existingCase?.caseNumber || '',
-        assignmentType: ((existingCase?.assignmentType as any) === 'Initial Review' ? 'Initial' : existingCase?.assignmentType) || 'Initial',
+        assignmentType: normalizeAssignmentType(existingCase?.assignmentType) || 'Initial',
         status: existingCase?.status || 'Open',
         firstTimeBilling: existingCase?.firstTimeBilling ?? false,
         caseNotes: existingCase?.caseNotes || '',
@@ -127,7 +137,8 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {/* Render in exact desired order from ASSIGNMENT_TYPES */}
+                {/* Use ASSIGNMENT_TYPES for exact labels: "Initial", "Review", "Three-Year Review", "Medication".
+                    value and displayed text are identical; sensible short values stored in DB. */}
                 {ASSIGNMENT_TYPES.map((t) => (
                   <SelectItem key={t} value={t}>{t}</SelectItem>
                 ))}

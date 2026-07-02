@@ -53,13 +53,13 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90dvh] flex flex-col gap-2 overflow-hidden !top-3 !-translate-y-0 sm:!top-1/2 sm:!-translate-y-1/2">
         <DialogHeader>
           <DialogTitle>Your Info (for Invoices)</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-1">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-3 py-0.5 pr-1 -mr-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <Label>Your Name</Label>
               <Input value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} className="mt-1.5" />
@@ -70,7 +70,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <Label>Email</Label>
               <Input value={form.email || ''} onChange={(e) => setForm({ ...form, email: e.target.value })} className="mt-1.5" />
@@ -163,7 +163,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                 <Button variant="ghost" size="sm" onClick={() => setForm({ ...form, logoDataUrl: undefined })}>Remove</Button>
               )}
             </div>
-            <p className="text-[10px] text-muted-foreground mt-1">Stored locally. Appears on generated PDFs. (Small preview above)</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Stored locally. Appears on generated PDFs. (Small preview above)</p>
             {form.logoDataUrl && (
               <div className="text-[10px] text-muted-foreground">Will appear scaled in invoice header.</div>
             )}
@@ -177,11 +177,11 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
               className="mt-1.5"
               rows={2}
             />
-            <p className="text-xs text-muted-foreground mt-1">Professional text only. Appears on every invoice.</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Professional text only. Appears on every invoice.</p>
           </div>
 
           {/* PWA Install Prompt */}
-          <div className="border-t pt-4 mt-2 space-y-3">
+          <div className="border-t pt-3 mt-1.5 space-y-2">
             <div>
               <Label className="font-medium">Install CaseLog App</Label>
               <p className="text-xs text-muted-foreground">
@@ -219,7 +219,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
           </div>
 
           {/* Data Backup / Restore */}
-          <div className="border-t pt-4 mt-2 space-y-3">
+          <div className="border-t pt-3 mt-1.5 space-y-2">
             <div>
               <Label className="font-medium">Backup &amp; Restore</Label>
               <p className="text-xs text-muted-foreground">Export or import all your local data as JSON.</p>
@@ -321,7 +321,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
           </div>
 
           {/* Offline-first Sync Controls */}
-          <div className="border-t pt-4 mt-2 space-y-3">
+          <div className="border-t pt-3 mt-1.5 space-y-2">
             <div>
               <Label className="font-medium">Sync &amp; Data</Label>
               <p className="text-xs text-muted-foreground">
