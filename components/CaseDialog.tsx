@@ -22,16 +22,13 @@ interface CaseDialogProps {
 export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps) {
   const { addCase, editCase } = useAppStore();
 
-  interface LocalCaseForm extends Omit<CaseFormData, 'hourlyRate'> {
-    hourlyRate: string; // always string for controlled text input (empty allowed)
-  }
+  interface LocalCaseForm extends Omit<CaseFormData, 'hourlyRate'> {}
 
   const [form, setForm] = useState<LocalCaseForm>(() => ({
     respondentName: existingCase?.respondentName || '',
     caseNumber: existingCase?.caseNumber || '',
     assignmentType: ((existingCase?.assignmentType as any) === 'Initial Review' ? 'Initial' : existingCase?.assignmentType) || 'Initial',
     status: existingCase?.status || 'Open',
-    hourlyRate: existingCase ? existingCase.hourlyRate.toString() : '',
     firstTimeBilling: existingCase?.firstTimeBilling ?? false,
     caseNotes: existingCase?.caseNotes || '',
   }));
@@ -46,7 +43,6 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
         caseNumber: existingCase?.caseNumber || '',
         assignmentType: ((existingCase?.assignmentType as any) === 'Initial Review' ? 'Initial' : existingCase?.assignmentType) || 'Initial',
         status: existingCase?.status || 'Open',
-        hourlyRate: existingCase ? existingCase.hourlyRate.toString() : '',
         firstTimeBilling: existingCase?.firstTimeBilling ?? false,
         caseNotes: existingCase?.caseNotes || '',
       });
@@ -59,16 +55,10 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
       return;
     }
 
-    const rateStr = form.hourlyRate.trim();
-    const num = parseFloat(rateStr.replace(',', '.'));
-    if (!rateStr || isNaN(num) || num <= 0) {
-      toast.error('Hourly rate is required.');
-      return;
-    }
-
+    // Provide default hourlyRate (now managed at time entry level)
     const submitData: CaseFormData = {
       ...form,
-      hourlyRate: num,
+      hourlyRate: existingCase?.hourlyRate ?? 0,
     };
 
     try {
@@ -87,7 +77,6 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
           caseNumber: '',
           assignmentType: 'Initial',
           status: 'Open',
-          hourlyRate: '',
           firstTimeBilling: false,
           caseNotes: '',
         });
@@ -125,70 +114,25 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
                 placeholder="3AN-24-00123"
                 className="mt-1.5"
               />
-              <p className="text-[10px] text-muted-foreground mt-0.5">Always text. Never a number.</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label>Assignment Type</Label>
-              <Select
-                value={form.assignmentType}
-                onValueChange={(val) => setForm({ ...form, assignmentType: val as any })}
-              >
-                <SelectTrigger className="mt-1.5">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {/* Render in exact desired order from ASSIGNMENT_TYPES */}
-                  {ASSIGNMENT_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Hourly Rate</Label>
-              <div className="relative mt-1.5">
-                <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  pattern="[0-9]*\.?[0-9]*"
-                  value={form.hourlyRate}
-                  onChange={(e) => {
-                    let val = e.target.value;
-                    // Only allow digits and at most one dot (or comma)
-                    val = val.replace(/[^0-9.,]/g, '').replace(',', '.');
-                    const parts = val.split('.');
-                    if (parts.length > 2) {
-                      val = parts[0] + '.' + parts[1];
-                    }
-                    setForm({ ...form, hourlyRate: val });
-                  }}
-                  onBlur={() => {
-                    if (form.hourlyRate) {
-                      const num = parseFloat(form.hourlyRate);
-                      if (!isNaN(num)) {
-                        setForm({ ...form, hourlyRate: num.toString() });
-                      }
-                    }
-                  }}
-                  placeholder="$0.00"
-                  className="pl-7 pr-8"
-                />
-                {form.hourlyRate && (
-                  <button
-                    type="button"
-                    onClick={() => setForm({ ...form, hourlyRate: '' })}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-sm leading-none"
-                    aria-label="Clear hourly rate"
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-            </div>
+          <div>
+            <Label>Assignment Type</Label>
+            <Select
+              value={form.assignmentType}
+              onValueChange={(val) => setForm({ ...form, assignmentType: val as any })}
+            >
+              <SelectTrigger className="mt-1.5">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {/* Render in exact desired order from ASSIGNMENT_TYPES */}
+                {ASSIGNMENT_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>

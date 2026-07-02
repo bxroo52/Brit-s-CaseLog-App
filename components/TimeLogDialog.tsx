@@ -30,7 +30,7 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
   const [form, setForm] = useState<TimeEntryFormData>({
     caseId: defaultCaseId || (openCases[0]?.id ?? ''),
     date: format(new Date(), 'yyyy-MM-dd'),
-    activityType: 'Home Visit',
+    activityType: 'Contact',
     billableHours: 1,
     description: '',
     startTime: '',
@@ -40,10 +40,6 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
   const [isTiming, setIsTiming] = useState(false);
   const [timerStart, setTimerStart] = useState<Date | null>(null);
   const [liveHours, setLiveHours] = useState(0);
-
-  const selectedCase = getCaseById(form.caseId);
-  const roundedPreview = Math.round(form.billableHours * 10) / 10;
-  const amountPreview = selectedCase ? roundedPreview * selectedCase.hourlyRate : 0;
 
   // Populate when editing
   useEffect(() => {
@@ -138,7 +134,7 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
     setForm({
       caseId: defaultCaseId || (openCases[0]?.id ?? ''),
       date: format(new Date(), 'yyyy-MM-dd'),
-      activityType: 'Home Visit',
+      activityType: 'Contact',
       billableHours: 1,
       description: '',
       startTime: '',
@@ -167,24 +163,24 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
                 {openCases.length === 0 && <div className="p-2 text-sm text-muted-foreground">No open cases. Create one first.</div>}
                 {openCases.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.respondentName} — {c.caseNumber}
+                    {c.respondentName}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="flex gap-3">
             <div>
               <Label>Date</Label>
               <Input
                 type="date"
                 value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
-                className="mt-1.5"
+                className="mt-1.5 w-28"
               />
             </div>
-            <div>
+            <div className="flex-1">
               <Label>Activity</Label>
               <Select value={form.activityType} onValueChange={(v) => setForm({ ...form, activityType: v as any })}>
                 <SelectTrigger className="mt-1.5">
@@ -213,38 +209,25 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
             </div>
             <div className="flex items-center gap-2 mt-1.5">
               <Input
-                type="text"
-                inputMode="decimal"
-                pattern="[0-9]*\.?[0-9]*"
-                value={form.billableHours === 0 ? '' : form.billableHours.toString()}
+                type="number"
+                step="0.1"
+                min="0"
+                value={form.billableHours === 0 ? '' : form.billableHours}
                 onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === '') {
-                    setForm({ ...form, billableHours: 0 });
-                  } else {
-                    const num = parseFloat(val.replace(',', '.'));
-                    setForm({ ...form, billableHours: isNaN(num) ? 0 : num });
-                  }
+                  const val = parseFloat(e.target.value);
+                  setForm({ ...form, billableHours: isNaN(val) ? 0 : val });
                 }}
                 placeholder="0.0"
               />
-              <div className="text-xs w-28 text-right text-muted-foreground">
-                Rounded: <span className="font-mono font-semibold text-foreground">{roundedPreview.toFixed(1)}</span>
-              </div>
             </div>
-            {selectedCase && (
-              <div className="text-right text-xs mt-0.5 text-muted-foreground">
-                {formatCurrency(amountPreview)} @ {formatCurrency(selectedCase.hourlyRate)}/hr
-              </div>
-            )}
             {isTiming && (
               <div className="text-[10px] text-amber-600 mt-1">Timer running — values update live. Stop when done.</div>
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Start (optional)</Label>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1">
+              <Label>Start</Label>
               <Input
                 type="time"
                 value={form.startTime}
@@ -252,8 +235,8 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
                 className="mt-1.5"
               />
             </div>
-            <div>
-              <Label>End (optional)</Label>
+            <div className="flex-1">
+              <Label>End</Label>
               <Input
                 type="time"
                 value={form.endTime}
@@ -265,18 +248,6 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
 
           <div>
             <Label>Description</Label>
-            <div className="flex flex-wrap gap-1 mb-1.5">
-              {['Home visit', 'Court appearance', 'Report writing', 'Phone call', 'Travel time'].map((phrase) => (
-                <button
-                  key={phrase}
-                  type="button"
-                  onClick={() => setForm({ ...form, description: form.description ? form.description + ' ' + phrase : phrase })}
-                  className="text-[10px] px-2 py-0.5 rounded-full bg-muted hover:bg-muted/80 border"
-                >
-                  {phrase}
-                </button>
-              ))}
-            </div>
             <Textarea
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}

@@ -9,7 +9,6 @@ export const ASSIGNMENT_TYPES: AssignmentType[] = [
 
 export const ACTIVITY_TYPES: ActivityType[] = [
   'Contact',
-  'Home Visit',
   'Court',
   'Research',
   'Report Writing',
