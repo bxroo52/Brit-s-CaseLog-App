@@ -307,15 +307,10 @@ export default function CaseLogApp() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="stat-card">
           <div className="text-sm text-muted-foreground">Open Cases</div>
           <div className="text-4xl font-semibold tabular-nums mt-1">{openCases.length}</div>
-        </div>
-        <div className="stat-card">
-          <div className="text-sm text-muted-foreground">Pending Entries</div>
-          <div className="text-4xl font-semibold tabular-nums mt-1">{allPending.length}</div>
-          <div className="text-xs text-muted-foreground mt-1">{formatHours(totalPendingHours)} hrs • {formatCurrency(totalPendingAmount)}</div>
         </div>
         <div className="stat-card">
           <div className="text-sm text-muted-foreground">This Month Logged</div>
@@ -344,7 +339,11 @@ export default function CaseLogApp() {
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {openCases.slice(0, 6).map((c) => (
-                <div key={c.id} className="log-card flex justify-between gap-3">
+                <div
+                  key={c.id}
+                  className="log-card flex justify-between gap-3 cursor-pointer hover:bg-muted/50"
+                  onClick={() => openEditCase(c)}
+                >
                   <div>
                     <div className="font-medium">{c.respondentName}</div>
                     <div className="text-sm text-muted-foreground">{c.caseNumber} • {c.assignmentType}</div>
@@ -353,8 +352,8 @@ export default function CaseLogApp() {
                   <div className="flex flex-col items-end justify-between text-right text-xs">
                     <Badge variant="outline" className="mb-1">{c.status}</Badge>
                     <div className="flex gap-1 mt-auto">
-                      <Button size="sm" variant="ghost" onClick={() => quickLogTime(c.id)} className="h-7 px-2">+ Time</Button>
-                      <Button size="sm" variant="ghost" onClick={() => quickLogExpense(c.id)} className="h-7 px-2">+ Exp</Button>
+                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); quickLogTime(c.id); }} className="h-7 px-2">+ Time</Button>
+                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); quickLogExpense(c.id); }} className="h-7 px-2">+ Exp</Button>
                     </div>
                   </div>
                 </div>
