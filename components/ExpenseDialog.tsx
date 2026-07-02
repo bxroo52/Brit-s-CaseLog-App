@@ -98,12 +98,12 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="flex gap-3">
             <div>
               <Label>Date</Label>
-              <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="mt-1.5" />
+              <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="mt-1.5 w-28" />
             </div>
-            <div>
+            <div className="flex-1">
               <Label>Type</Label>
               <Select value={form.expenseType} onValueChange={(v) => setForm({ ...form, expenseType: v as any })}>
                 <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
@@ -156,7 +156,7 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
           <div>
             <Label>Amount</Label>
             <div className="relative mt-1.5">
-              <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">$</span>
               <Input
                 type="text"
                 inputMode="decimal"
