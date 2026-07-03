@@ -9,11 +9,12 @@ import NewCaseForm from '@/components/NewCaseForm';
 import OpenCasesSection from '@/components/OpenCasesSection';
 import ProfileForm from '@/components/ProfileForm';
 import ProfileOverview from '@/components/ProfileOverview';
+import LogTimeForm from '@/components/LogTimeForm';
+import ActivityRatesModal from '@/components/ActivityRatesModal';
 import { generateBillingSpreadsheet } from '@/lib/generateBillingSpreadsheet';
 import { TimeLogDialog } from '@/components/TimeLogDialog';
 import { ExpenseDialog } from '@/components/ExpenseDialog';
 import { SettingsDialog } from '@/components/SettingsDialog';
-import { ActivityRatesDialog } from '@/components/ActivityRatesDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -378,6 +379,7 @@ export default function CaseLogApp() {
     removeTimeEntry,
     removeExpense,
     addCase,
+    addTimeEntry,
     editCase,
     pendingChangesCount,
     saveProfile,
@@ -621,6 +623,8 @@ export default function CaseLogApp() {
   }, [isLoading]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileFormOpen, setProfileFormOpen] = useState(false);
+  const [logTimeOpen, setLogTimeOpen] = useState(false);
+  const [logTimeCaseId, setLogTimeCaseId] = useState<string | undefined>();
 
   const { theme, setTheme } = useTheme();
 
@@ -669,11 +673,10 @@ export default function CaseLogApp() {
     }
   };
 
-  // Open log with case preselected
+  // Open log with case preselected (using new bottom-sheet form)
   const quickLogTime = (caseId?: string) => {
-    setDefaultTimeCaseId(caseId);
-    setEditingTime(null);
-    setTimeDialogOpen(true);
+    setLogTimeCaseId(caseId);
+    setLogTimeOpen(true);
   };
 
   const quickLogExpense = (caseId?: string) => {
@@ -745,6 +748,23 @@ export default function CaseLogApp() {
     }
 
     toast.success('Profile and rates saved.');
+  };
+
+  const handleActivityRatesSave = async (rates: Record<string, number>) => {
+    for (const [activity, rate] of Object.entries(rates)) {
+      await saveActivityRate(activity, rate);
+    }
+    toast.success('Activity rates saved.');
+  };
+
+  const handleLogTimeSubmit = async (data: any) => {
+    await addTimeEntry({
+      caseId: data.caseId,
+      date: data.date,
+      activityType: data.activity,
+      billableHours: data.billableHours,
+      description: data.description || '',
+    });
   };
 
   const handleDeleteTime = async (t: TimeEntry) => {
@@ -1638,6 +1658,17 @@ export default function CaseLogApp() {
         />
       )}
 
+      {logTimeOpen && (
+        <LogTimeForm
+          cases={openCases}
+          onSubmit={handleLogTimeSubmit}
+          onCancel={() => {
+            setLogTimeOpen(false);
+            setLogTimeCaseId(undefined);
+          }}
+        />
+      )}
+
       {/* Account modal / info screens */}
       <Dialog open={accountModalOpen} onOpenChange={setAccountModalOpen}>
         <DialogContent className="sm:max-w-md max-h-[85dvh] flex flex-col">
@@ -1653,16 +1684,12 @@ export default function CaseLogApp() {
         </DialogContent>
       </Dialog>
 
-      {/* Activity Rates dedicated screen/dialog */}
-      <ActivityRatesDialog
-        open={activityRatesOpen}
-        onOpenChange={setActivityRatesOpen}
-        activityRates={activityRates}
-        rateChangeLogs={rateChangeLogs}
-        saveActivityRate={saveActivityRate}
-        loadActivityRates={loadActivityRates}
-        loadRateChangeLogs={loadRateChangeLogs}
-      />
+      {activityRatesOpen && (
+        <ActivityRatesModal
+          onSave={handleActivityRatesSave}
+          onClose={() => setActivityRatesOpen(false)}
+        />
+      )}
     </div>
   );
 }

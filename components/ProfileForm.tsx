@@ -67,12 +67,9 @@ export default function ProfileForm({ onSave, onClose }: {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Convert empty strings to 0 on save
     const processedRates = Object.fromEntries(
       Object.entries(formData.rates).map(([k, v]) => [k, v === '' ? 0 : parseFloat(v) || 0])
     );
-
     onSave({ ...formData, rates: processedRates });
   };
 
@@ -80,12 +77,11 @@ export default function ProfileForm({ onSave, onClose }: {
     <div className="fixed inset-0 bg-black/80 flex items-end z-50">
       <div className="bg-[#1C1C1E] w-full max-w-md rounded-t-3xl p-6 text-white max-h-[90vh] overflow-auto">
         <div className="flex justify-between mb-6">
-          <h2 className="text-2xl font-semibold">Your Info (for Invoices)</h2>
+          <h2 className="text-2xl font-semibold">Profile Overview</h2>
           <button onClick={onClose} className="text-3xl">×</button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Name, Email, Phone - blank */}
           <div>
             <label className="block text-sm font-medium text-gray-400 mb-1.5">Name</label>
             <input type="text" value={formData.name} onChange={e => setFormData(p => ({...p, name: e.target.value}))} placeholder="Enter your full name" className="w-full bg-[#2C2C2E] border border-[#3A3A3C] rounded-2xl px-4 py-3" />
@@ -101,10 +97,10 @@ export default function ProfileForm({ onSave, onClose }: {
             <input type="tel" value={formData.phone} onChange={e => setFormData(p => ({...p, phone: e.target.value}))} placeholder="(907) 555-0123" className="w-full bg-[#2C2C2E] border border-[#3A3A3C] rounded-2xl px-4 py-3" />
           </div>
 
-          {/* Activity Rates - BLANK by default */}
+          {/* Blank Activity Rates */}
           <div>
             <h3 className="font-semibold mb-1">Activity Rates</h3>
-            <p className="text-sm text-gray-400 mb-4">Set your hourly rate for each activity type.</p>
+            <p className="text-sm text-gray-400 mb-4">Set your hourly rate for each activity type (used in Log Time).</p>
 
             {Object.entries(formData.rates).map(([activity, rate]) => (
               <div key={activity} className="flex items-center justify-between py-3 border-b border-[#3A3A3C]">
