@@ -1,11 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { useAppStore } from '@/stores/useAppStore';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 
 export default function NewCaseModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const { addCase } = useAppStore();
-
   const [form, setForm] = useState({
     first_name: '',
     last_name: '',
@@ -16,30 +14,46 @@ export default function NewCaseModal({ isOpen, onClose }: { isOpen: boolean; onC
     notes: '',
   });
 
+  // Reset form every time the modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setForm({
+        first_name: '',
+        last_name: '',
+        case_number: '',
+        assignment_type: 'Initial',
+        status: 'Open',
+        first_time_billing: false,
+        notes: '',
+      });
+    }
+  }, [isOpen]);
+
   const handleChange = (field: string, value: string | boolean) => {
     if (field === 'case_number') {
-      // Force uppercase
       value = (value as string).toUpperCase();
     }
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async () => {
-    const caseData = {
-      respondentFirstName: form.first_name,
-      respondentLastName: form.last_name,
-      caseNumber: form.case_number,
-      assignmentType: form.assignment_type as any,
-      status: form.status as any,
-      firstTimeBilling: form.first_time_billing,
-      notes: form.notes,
-    };
-    try {
-      await addCase(caseData);
-      alert('Case created!');
+    if (!supabase) {
+      alert('Supabase not configured');
+      return;
+    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return alert('Not logged in');
+
+    const { error } = await supabase.from('cases').insert({
+      ...form,
+      user_id: user.id,
+    });
+
+    if (error) {
+      alert('Error creating case: ' + error.message);
+    } else {
+      alert('Case created successfully!');
       onClose();
-    } catch (e) {
-      alert('Error creating case');
     }
   };
 
@@ -56,22 +70,12 @@ export default function NewCaseModal({ isOpen, onClose }: { isOpen: boolean; onC
         <div className="space-y-5">
           <div>
             <label className="block text-sm mb-1">First Name</label>
-            <input 
-              value={form.first_name} 
-              onChange={e => handleChange('first_name', e.target.value)} 
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4" 
-              placeholder="First Name" 
-            />
+            <input value={form.first_name} onChange={e => handleChange('first_name', e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4" placeholder="First Name" />
           </div>
 
           <div>
             <label className="block text-sm mb-1">Last Name</label>
-            <input 
-              value={form.last_name} 
-              onChange={e => handleChange('last_name', e.target.value)} 
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4" 
-              placeholder="Last Name" 
-            />
+            <input value={form.last_name} onChange={e => handleChange('last_name', e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4" placeholder="Last Name" />
           </div>
 
           <div>
@@ -80,18 +84,14 @@ export default function NewCaseModal({ isOpen, onClose }: { isOpen: boolean; onC
               value={form.case_number} 
               onChange={e => handleChange('case_number', e.target.value)} 
               className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 uppercase" 
-              placeholder="3AN-24-00123" 
+              placeholder="4FA-25-222PR" 
               style={{ textTransform: 'uppercase' }}
             />
           </div>
 
           <div>
             <label className="block text-sm mb-1">Assignment Type</label>
-            <select 
-              value={form.assignment_type} 
-              onChange={e => handleChange('assignment_type', e.target.value)} 
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4"
-            >
+            <select value={form.assignment_type} onChange={e => handleChange('assignment_type', e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4">
               <option>Initial</option>
               <option>Review</option>
               <option>Three year</option>
@@ -100,33 +100,20 @@ export default function NewCaseModal({ isOpen, onClose }: { isOpen: boolean; onC
 
           <div>
             <label className="block text-sm mb-1">Status</label>
-            <select 
-              value={form.status} 
-              onChange={e => handleChange('status', e.target.value)} 
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4"
-            >
+            <select value={form.status} onChange={e => handleChange('status', e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4">
               <option>Open</option>
               <option>Closed</option>
             </select>
           </div>
 
           <div className="flex items-center gap-3">
-            <input 
-              type="checkbox" 
-              checked={form.first_time_billing} 
-              onChange={e => handleChange('first_time_billing', e.target.checked)} 
-            />
+            <input type="checkbox" checked={form.first_time_billing} onChange={e => handleChange('first_time_billing', e.target.checked)} />
             <span>First time billing for this case</span>
           </div>
 
           <div>
             <label className="block text-sm mb-1">Case Notes (optional)</label>
-            <textarea 
-              value={form.notes} 
-              onChange={e => handleChange('notes', e.target.value)} 
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 h-24" 
-              placeholder="Special instructions, prior contacts, etc." 
-            />
+            <textarea value={form.notes} onChange={e => handleChange('notes', e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 h-24" placeholder="Special instructions, prior contacts, etc." />
           </div>
         </div>
 

@@ -230,7 +230,32 @@ export const useAppStore = create<AppState>()(
       },
 
       loadProfile: async () => {
-        const profile = await getUserProfile();
+        let profile = await getUserProfile();
+
+        // Try to enrich/merge with Supabase profiles table if available
+        if (supabase && profile) {
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              const { data: supabaseProfile } = await supabase
+                .from('profiles')
+                .select('name, email, phone')
+                .eq('id', user.id)
+                .single();
+              if (supabaseProfile) {
+                profile = {
+                  ...profile,
+                  name: supabaseProfile.name || profile.name,
+                  email: supabaseProfile.email || profile.email,
+                  phone: supabaseProfile.phone || profile.phone,
+                };
+              }
+            }
+          } catch (e) {
+            // ignore, use local
+          }
+        }
+
         set({ profile });
       },
 
@@ -457,6 +482,23 @@ export const useAppStore = create<AppState>()(
       saveProfile: async (updates) => {
         const updated = await updateUserProfile(updates);
         set({ profile: updated });
+
+        // Also sync basic fields to Supabase profiles table if available
+        if (supabase) {
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              await supabase.from('profiles').upsert({
+                id: user.id,
+                name: updated.name || updates.name || '',
+                email: updated.email || updates.email || '',
+                phone: updated.phone || updates.phone || '',
+              });
+            }
+          } catch (e) {
+            // ignore sync error, local is primary
+          }
+        }
       },
 
       // ---- Billing ----
