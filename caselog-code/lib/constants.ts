@@ -1,14 +1,15 @@
 import { ActivityType, AssignmentType, ExpenseType } from '@/types';
 
 export const ASSIGNMENT_TYPES: AssignmentType[] = [
-  'Initial',
-  'Follow-up',
+  'Initial Review',
   'Review',
-  'Other',
+  'Three-Year Review',
+  'Medication',
 ];
 
 export const ACTIVITY_TYPES: ActivityType[] = [
   'Contact',
+  'Home Visit',
   'Court',
   'Research',
   'Report Writing',
@@ -26,7 +27,7 @@ export const EXPENSE_TYPES: ExpenseType[] = [
   'Other',
 ];
 
-export const DEFAULT_HOURLY_RATE = 0; // No default; users must set per-activity rates in the modal (0 means unset)
+export const DEFAULT_HOURLY_RATE = 85; // Reasonable starting default for court visitors
 
 // Alaska Court Visitor specific guidance (shown in UI)
 export const ALASKA_NOTES = {

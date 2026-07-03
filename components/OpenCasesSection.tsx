@@ -41,7 +41,7 @@ export default function OpenCasesSection({ openCases, onNewCase, onManageAll, on
               <div>
                 <div className="font-medium">{c.respondentLastName}, {c.respondentFirstName}</div>
                 <div className="text-sm text-gray-400">{c.caseNumber} • {c.assignmentType}</div>
-                <div className="text-xs text-gray-500 mt-1">$0/hr</div>
+                <div className="text-xs text-gray-500 mt-1"></div>
               </div>
               <div className="flex flex-col items-end gap-2">
                 <div className="bg-green-500/20 text-green-400 text-xs px-3 py-1 rounded-full">Open</div>

@@ -1,17 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useAppStore } from '@/stores/useAppStore';
-import { ACTIVITY_TYPES } from '@/lib/constants';
+import { useState } from 'react';
 
 export default function ProfileForm({ onSave, onClose }: { 
   onSave: (data: any) => void; 
   onClose: () => void; 
 }) {
-  const { profile, activityRates } = useAppStore();
-
-  const [formData, setFormData] = useState(() => {
-    const initialRates: Record<string, string> = {
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    rates: {
       Contact: '',
       Court: '',
       Research: '',
@@ -19,44 +18,8 @@ export default function ProfileForm({ onSave, onClose }: {
       'Drive Time': '',
       'Wait Time': '',
       Other: '',
-    };
-
-    ACTIVITY_TYPES.forEach((activity) => {
-      const found = activityRates.find((r) => r.activityName === activity);
-      if (found) {
-        initialRates[activity] = String(found.hourlyRate);
-      }
-    });
-
-    return {
-      name: profile?.name || '',
-      email: profile?.email || '',
-      phone: profile?.phone || '',
-      rates: initialRates,
-    };
+    } as Record<string, string>,
   });
-
-  // Keep in sync if store updates while form is open
-  useEffect(() => {
-    setFormData(prev => {
-      const newRates = { ...prev.rates };
-
-      ACTIVITY_TYPES.forEach((activity) => {
-        const found = activityRates.find((r) => r.activityName === activity);
-        if (found) {
-          newRates[activity] = String(found.hourlyRate);
-        }
-      });
-
-      return {
-        ...prev,
-        name: profile?.name || prev.name,
-        email: profile?.email || prev.email,
-        phone: profile?.phone || prev.phone,
-        rates: newRates,
-      };
-    });
-  }, [profile, activityRates]);
 
   const handleRateChange = (activity: string, value: string) => {
     setFormData(prev => ({
@@ -97,10 +60,9 @@ export default function ProfileForm({ onSave, onClose }: {
             <input type="tel" value={formData.phone} onChange={e => setFormData(p => ({...p, phone: e.target.value}))} placeholder="(907) 555-0123" className="w-full bg-[#2C2C2E] border border-[#3A3A3C] rounded-2xl px-4 py-3" />
           </div>
 
-          {/* Blank Activity Rates */}
           <div>
             <h3 className="font-semibold mb-1">Activity Rates</h3>
-            <p className="text-sm text-gray-400 mb-4">Set your hourly rate for each activity type (used in Log Time).</p>
+            <p className="text-sm text-gray-400 mb-4">Set your hourly rate for each activity type.</p>
 
             {Object.entries(formData.rates).map(([activity, rate]) => (
               <div key={activity} className="flex items-center justify-between py-3 border-b border-[#3A3A3C]">

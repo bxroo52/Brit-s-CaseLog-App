@@ -1,87 +1,108 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAppStore } from '@/stores/useAppStore';
-import { ACTIVITY_TYPES } from '@/lib/constants';
+import { supabase } from '@/lib/supabase';
 
-export default function ActivityRatesModal({ onSave, onClose }: { 
-  onSave: (rates: Record<string, number>) => void; 
-  onClose: () => void; 
-}) {
-  const { activityRates } = useAppStore();
+const activityTypes = ['Contact', 'Court', 'Research', 'Report Writing', 'Drive Time', 'Wait Time', 'Other'];
 
-  const [rates, setRates] = useState<Record<string, string>>({
-    Contact: '0.00',
-    Court: '0.00',
-    Research: '0.00',
-    'Report Writing': '0.00',
-    'Drive Time': '0.00',
-    'Wait Time': '0.00',
-    Other: '0.00',
-  });
+export default function ActivityRatesModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const [rates, setRates] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
 
-  // Preload from store
   useEffect(() => {
-    const loaded: Record<string, string> = {
-      Contact: '0.00',
-      Court: '0.00',
-      Research: '0.00',
-      'Report Writing': '0.00',
-      'Drive Time': '0.00',
-      'Wait Time': '0.00',
-      Other: '0.00',
-    };
+    if (!isOpen) return;
 
-    ACTIVITY_TYPES.forEach((activity) => {
-      const found = activityRates.find((r) => r.activityName === activity);
-      if (found) {
-        loaded[activity] = found.hourlyRate.toFixed(2);
-      }
-    });
-    setRates(loaded);
-  }, [activityRates]);
+    async function loadRates() {
+      if (!supabase) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-  const handleChange = (activity: string, value: string) => {
-    setRates(prev => ({ ...prev, [activity]: value }));
+      const { data } = await supabase
+        .from('hourly_rates')
+        .select('activity_type, hourly_rate')
+        .eq('user_id', user.id);
+
+      const loaded: Record<string, string> = {};
+      data?.forEach(r => {
+        if (r.hourly_rate !== null) loaded[r.activity_type] = r.hourly_rate.toFixed(2);
+      });
+      setRates(loaded);
+    }
+    loadRates();
+  }, [isOpen]);
+
+  const handleChange = (type: string, value: string) => {
+    setRates(prev => ({ ...prev, [type]: value }));
   };
 
-  const handleSave = () => {
-    const processed = Object.fromEntries(
-      Object.entries(rates).map(([k, v]) => [k, parseFloat(v) || 0])
-    );
-    onSave(processed);
+  const handleSave = async () => {
+    setLoading(true);
+    if (!supabase) {
+      alert('Supabase not configured');
+      setLoading(false);
+      return;
+    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    const updates = Object.entries(rates).map(([activity_type, rate]) => ({
+      user_id: user.id,
+      activity_type,
+      hourly_rate: rate ? parseFloat(rate) : null,
+    }));
+
+    const { error } = await supabase
+      .from('hourly_rates')
+      .upsert(updates, { onConflict: 'user_id,activity_type' });
+
+    if (!error) {
+      // Optional: sync to Zustand if still needed
+      onClose();
+    } else {
+      alert('Error saving rates');
+    }
+    setLoading(false);
   };
+
+  if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-end z-50">
-      <div className="bg-[#1C1C1E] w-full max-w-md rounded-t-3xl p-6 text-white">
-        <div className="flex justify-between mb-6">
-          <h2 className="text-2xl font-semibold">Activity Rates</h2>
-          <button onClick={onClose} className="text-3xl">×</button>
+    <div className="fixed inset-0 bg-black/80 flex items-end z-50"> {/* iOS modal style */}
+      <div className="bg-zinc-950 w-full rounded-t-3xl p-6 max-h-[90vh] overflow-auto">
+        <h2 className="text-lg mb-1">Set hourly rates</h2>
+        <p className="text-zinc-400 text-sm mb-6">These apply to all future time logs.</p>
+
+        <div className="space-y-6">
+          {activityTypes.map(type => (
+            <div key={type} className="flex items-center justify-between">
+              <span>{type}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-zinc-400">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={rates[type] || ''}
+                  onChange={(e) => handleChange(type, e.target.value)}
+                  className="bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 w-32 text-right"
+                />
+              </div>
+            </div>
+          ))}
         </div>
 
-        <p className="text-sm text-gray-400 mb-8">Set the hourly rate for each activity type. These apply to all future time logs.</p>
-
-        {Object.entries(rates).map(([activity, value]) => (
-          <div key={activity} className="flex items-center justify-between py-4 border-b border-[#3A3A3C]">
-            <span className="text-white">{activity}</span>
-            <div className="flex items-center gap-2">
-              <span className="text-gray-400">$</span>
-              <input
-                type="number"
-                value={value}
-                onChange={(e) => handleChange(activity, e.target.value)}
-                step="0.01"
-                min="0"
-                className="w-28 bg-[#2C2C2E] border border-[#3A3A3C] rounded-xl px-4 py-2 text-right"
-              />
-            </div>
-          </div>
-        ))}
-
-        <div className="pt-8 space-y-3">
-          <button onClick={handleSave} className="w-full bg-white text-black py-4 rounded-2xl font-semibold">Save Rates</button>
-          <button onClick={onClose} className="w-full border border-gray-600 py-4 rounded-2xl">Cancel</button>
+        <div className="mt-8 space-y-3">
+          <button
+            onClick={handleSave}
+            disabled={loading}
+            className="w-full bg-white text-black py-4 rounded-2xl font-medium"
+          >
+            {loading ? 'Saving...' : 'Save Rates'}
+          </button>
+          <button onClick={onClose} className="w-full py-4 text-zinc-400">Cancel</button>
         </div>
       </div>
     </div>

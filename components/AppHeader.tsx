@@ -10,7 +10,6 @@ import {
   DollarSign,
   Users,
   Calendar,
-  Settings,
   User,
 } from 'lucide-react';
 import { formatMonth } from '@/lib/format';
@@ -33,10 +32,9 @@ const navItems: NavItem[] = [
 interface AppHeaderProps {
   activeView: 'dashboard' | 'cases' | 'time' | 'expenses' | 'billing' | 'account';
   onViewChange: (view: any) => void;
-  onOpenSettings: () => void;
 }
 
-export function AppHeader({ onOpenSettings }: { onOpenSettings: () => void }) {
+export function AppHeader() {
   const { profile } = useAppStore();
 
   return (
@@ -51,11 +49,6 @@ export function AppHeader({ onOpenSettings }: { onOpenSettings: () => void }) {
             <div className="text-[10px] text-muted-foreground -mt-1">{profile?.organization?.toUpperCase() || 'ALASKA COURT SYSTEM'}</div>
           </div>
         </div>
-
-        <Button variant="outline" className="gap-2 h-10 md:h-9" onClick={onOpenSettings}>
-          <Settings className="h-4 w-4" />
-          <span className="hidden sm:inline">Settings</span>
-        </Button>
       </div>
 
       {/* Tiny humor bar */}

@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import CaseSelector from '@/components/CaseSelector';
 import { EXPENSE_TYPES } from '@/lib/constants';
 import { ExpenseFormData, Case } from '@/types';
 import { useAppStore } from '@/stores/useAppStore';
@@ -23,29 +22,15 @@ interface ExpenseDialogProps {
 
 export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: ExpenseDialogProps) {
   const { cases, addExpense, editExpense, getCaseById } = useAppStore();
+  const openCases = cases.filter((c) => c.status === 'Open');
 
   const [form, setForm] = useState<ExpenseFormData>({
-    caseId: defaultCaseId || '',
+    caseId: defaultCaseId || (openCases[0]?.id ?? ''),
     date: format(new Date(), 'yyyy-MM-dd'),
     expenseType: 'Parking',
     description: '',
     amount: 0,
   });
-
-  const openCases = cases.filter((c) => c.status === 'Open');
-
-  // Include the case for the current expense (supports editing closed cases)
-  const selectorCases = (() => {
-    let list = [...openCases];
-    const currentId = existing?.caseId || form.caseId || defaultCaseId;
-    if (currentId) {
-      const currentCase = cases.find((c) => c.id === currentId);
-      if (currentCase && !list.some((c) => c.id === currentCase.id)) {
-        list = [currentCase, ...list];
-      }
-    }
-    return list.length > 0 ? list : openCases;
-  })();
 
   useEffect(() => {
     if (existing) {
@@ -98,19 +83,27 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
           <DialogTitle>{existing ? 'Edit Expense' : 'Log Expense'}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto space-y-4">
-          <CaseSelector
-            selectedCaseId={form.caseId}
-            onChange={(caseId) => setForm({ ...form, caseId })}
-            cases={openCases}
-          />
+        <div className="space-y-4">
+          <div>
+            <Label>Case</Label>
+            <Select value={form.caseId} onValueChange={(v) => v && setForm({ ...form, caseId: v })}>
+              <SelectTrigger className="mt-1.5">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {openCases.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.respondentName} — {c.caseNumber}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <div className="flex gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Date</Label>
-              <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="mt-1.5 w-28" />
+              <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="mt-1.5" />
             </div>
-            <div className="flex-1">
+            <div>
               <Label>Type</Label>
               <Select value={form.expenseType} onValueChange={(v) => setForm({ ...form, expenseType: v as any })}>
                 <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
@@ -119,7 +112,7 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
                 </SelectContent>
               </Select>
               {form.expenseType === 'Mileage' && (
-                <p className="text-xs text-muted-foreground mt-1">Enter total mileage reimbursement amount below. Record miles in description.</p>
+                <p className="text-[10px] text-muted-foreground mt-1">Use the description field for actual miles. Reimbursed per Alaska Court direction / IRS rate.</p>
               )}
             </div>
           </div>
@@ -127,22 +120,12 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
           <div>
             <Label>Amount</Label>
             <div className="relative mt-1.5">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">$</span>
+              <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
               <Input
-                type="text"
-                inputMode="decimal"
-                pattern="[0-9]*\.?[0-9]*"
-                value={form.amount === 0 ? '' : form.amount.toString()}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === '') {
-                    setForm({ ...form, amount: 0 });
-                  } else {
-                    const num = parseFloat(val.replace(',', '.'));
-                    setForm({ ...form, amount: isNaN(num) ? 0 : num });
-                  }
-                }}
-                placeholder="0.00"
+                type="number"
+                step="0.01"
+                value={form.amount}
+                onChange={(e) => setForm({ ...form, amount: parseFloat(e.target.value) || 0 })}
                 className="pl-7"
               />
             </div>
@@ -150,18 +133,6 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
 
           <div>
             <Label>Description / Receipt Note</Label>
-            <div className="flex flex-wrap gap-1.5 mb-1.5">
-              {['Parking at courthouse', 'Certified mail', 'Copies for court', 'Postage', 'Round trip mileage'].map((phrase) => (
-                <button
-                  key={phrase}
-                  type="button"
-                  onClick={() => setForm({ ...form, description: form.description ? form.description + ' ' + phrase : phrase })}
-                  className="text-sm px-3 py-1 rounded-full bg-muted hover:bg-muted/80 border active:bg-muted/60"
-                >
-                  {phrase}
-                </button>
-              ))}
-            </div>
             <Textarea
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}

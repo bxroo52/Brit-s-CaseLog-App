@@ -681,7 +681,7 @@ export const useAppStore = create<AppState>()(
           caseNumber: '3AN-25-00487',
           assignmentType: 'Review',
           status: 'Open',
-          hourlyRate: 92,
+          hourlyRate: 0,
           firstTimeBilling: true,
           caseNotes: 'Initial contact scheduled next week.',
         });

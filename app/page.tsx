@@ -9,12 +9,11 @@ import NewCaseForm from '@/components/NewCaseForm';
 import OpenCasesSection from '@/components/OpenCasesSection';
 import ProfileForm from '@/components/ProfileForm';
 import ProfileOverview from '@/components/ProfileOverview';
-import LogTimeForm from '@/components/LogTimeForm';
-import ActivityRatesModal from '@/components/ActivityRatesModal';
+import LogTimeModal from '@/app/components/LogTimeModal';
+import ActivityRatesModal from '@/app/components/ActivityRatesModal';
 import { generateBillingSpreadsheet } from '@/lib/generateBillingSpreadsheet';
 import { TimeLogDialog } from '@/components/TimeLogDialog';
 import { ExpenseDialog } from '@/components/ExpenseDialog';
-import { SettingsDialog } from '@/components/SettingsDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -418,10 +417,6 @@ export default function CaseLogApp() {
       handleSignOut();
       return;
     }
-    if (label === 'Settings') {
-      setSettingsOpen(true);
-      return;
-    }
 
     if (label === 'Profile') {
       setProfileFormOpen(true);
@@ -621,7 +616,6 @@ export default function CaseLogApp() {
       announce('Loading from your device…', false);
     }
   }, [isLoading]);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileFormOpen, setProfileFormOpen] = useState(false);
   const [logTimeOpen, setLogTimeOpen] = useState(false);
   const [logTimeCaseId, setLogTimeCaseId] = useState<string | undefined>();
@@ -748,23 +742,6 @@ export default function CaseLogApp() {
     }
 
     toast.success('Profile and rates saved.');
-  };
-
-  const handleActivityRatesSave = async (rates: Record<string, number>) => {
-    for (const [activity, rate] of Object.entries(rates)) {
-      await saveActivityRate(activity, rate);
-    }
-    toast.success('Activity rates saved.');
-  };
-
-  const handleLogTimeSubmit = async (data: any) => {
-    await addTimeEntry({
-      caseId: data.caseId,
-      date: data.date,
-      activityType: data.activity,
-      billableHours: data.billableHours,
-      description: data.description || '',
-    });
   };
 
   const handleDeleteTime = async (t: TimeEntry) => {
@@ -1528,7 +1505,6 @@ export default function CaseLogApp() {
           <div className="px-4 pb-2 text-xs font-semibold text-muted-foreground tracking-wider">SETTINGS</div>
           <div className="bg-card border rounded-xl overflow-hidden">
             {renderItem('Activity Rates')}
-            {renderItem('Settings')}
             {renderItem('Siri Shortcuts')}
             {renderItem('Integrations')}
             {renderItem('Dark mode', darkModeLabel)}
@@ -1599,9 +1575,7 @@ export default function CaseLogApp() {
 
   return (
     <div className="min-h-dvh flex flex-col bg-zinc-50 dark:bg-zinc-950" style={{ minHeight: '100dvh' }}>
-      <AppHeader
-        onOpenSettings={() => setSettingsOpen(true)}
-      />
+      <AppHeader />
 
       <main className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 py-8 pb-16">
         {isLoading && <div className="text-sm text-muted-foreground mb-2">Loading from your device…</div>}
@@ -1649,7 +1623,6 @@ export default function CaseLogApp() {
         defaultCaseId={defaultExpenseCaseId}
         existing={editingExpense}
       />
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
 
       {profileFormOpen && (
         <ProfileForm 
@@ -1658,16 +1631,13 @@ export default function CaseLogApp() {
         />
       )}
 
-      {logTimeOpen && (
-        <LogTimeForm
-          cases={openCases}
-          onSubmit={handleLogTimeSubmit}
-          onCancel={() => {
-            setLogTimeOpen(false);
-            setLogTimeCaseId(undefined);
-          }}
-        />
-      )}
+      <LogTimeModal
+        isOpen={logTimeOpen}
+        onClose={() => {
+          setLogTimeOpen(false);
+          setLogTimeCaseId(undefined);
+        }}
+      />
 
       {/* Account modal / info screens */}
       <Dialog open={accountModalOpen} onOpenChange={setAccountModalOpen}>
@@ -1684,12 +1654,10 @@ export default function CaseLogApp() {
         </DialogContent>
       </Dialog>
 
-      {activityRatesOpen && (
-        <ActivityRatesModal
-          onSave={handleActivityRatesSave}
-          onClose={() => setActivityRatesOpen(false)}
-        />
-      )}
+      <ActivityRatesModal
+        isOpen={activityRatesOpen}
+        onClose={() => setActivityRatesOpen(false)}
+      />
     </div>
   );
 }
