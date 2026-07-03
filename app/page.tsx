@@ -40,6 +40,7 @@ import {
   AlertCircle,
   LogOut,
   Settings,
+  ChevronRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
@@ -961,102 +962,98 @@ export default function CaseLogApp() {
   );
 
   const AccountView = () => {
-    const [editForm, setEditForm] = useState<Partial<UserProfile>>({});
-    const [isEditing, setIsEditing] = useState(false);
-
-    useEffect(() => {
-      if (profile) {
-        setEditForm({ ...profile });
+    const handleItemClick = (label: string) => {
+      if (label === 'Sign out') {
+        if (confirm('Are you sure you want to sign out?')) {
+          clearLocalData();
+          toast.success('Signed out successfully.');
+          // Optionally switch to dashboard
+          setActiveView('dashboard');
+        }
+        return;
       }
-    }, [profile]);
-
-    const handleSaveProfile = async () => {
-      try {
-        await saveProfile(editForm);
-        toast.success('Profile updated.');
-        setIsEditing(false);
-      } catch (e) {
-        toast.error('Failed to save profile.');
+      if (label === 'Settings') {
+        setSettingsOpen(true);
+        return;
       }
+      toast.info(`${label} tapped (demo)`);
     };
 
-    const handleCancelEdit = () => {
-      if (profile) setEditForm({ ...profile });
-      setIsEditing(false);
-    };
-
-    const handleLogout = async () => {
-      if (!confirm('Logout and clear all local data? This cannot be undone.')) return;
-      await clearLocalData();
-      toast('Logged out. All data cleared.');
-    };
-
-    const displayName = profile?.name || 'Court Visitor';
-    const initials = displayName.split(/\s+/).map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'CV';
+    const renderItem = (label: string, subtext?: string) => (
+      <div
+        key={label}
+        onClick={() => handleItemClick(label)}
+        className="flex items-center justify-between px-4 py-3 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer active:bg-muted"
+      >
+        <div className="flex flex-col">
+          <span className="text-sm">{label}</span>
+          {subtext && <span className="text-xs text-muted-foreground">{subtext}</span>}
+        </div>
+        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+      </div>
+    );
 
     return (
-      <div className="space-y-6 max-w-md mx-auto">
-        <div className="flex items-center gap-4">
-          <div className="h-16 w-16 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xl font-bold ring-2 ring-primary/20">
-            {initials}
-          </div>
-          <div>
-            <div className="text-2xl font-semibold">{displayName}</div>
-            <div className="text-muted-foreground">{profile?.email || '—'}</div>
-            <div className="text-sm text-muted-foreground mt-0.5">{profile?.title || 'Court Visitor'}</div>
+      <div className="max-w-md mx-auto px-4 py-6 space-y-6 text-sm overflow-y-auto">
+        {/* SETTINGS */}
+        <div>
+          <div className="px-4 pb-2 text-xs font-semibold text-muted-foreground tracking-wider">SETTINGS</div>
+          <div className="bg-card border rounded-xl overflow-hidden">
+            {renderItem('Siri Shortcuts')}
+            {renderItem('Integrations')}
+            {renderItem('Dark mode', 'Same as device')}
+            {renderItem('Notifications', 'Off')}
           </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Profile</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {[
-              { label: 'Name', key: 'name' as const, value: editForm.name || '' },
-              { label: 'Email', key: 'email' as const, value: editForm.email || '' },
-              { label: 'Phone', key: 'phone' as const, value: editForm.phone || '' },
-              { label: 'Court Visitor ID', key: 'courtVisitorId' as const, value: editForm.courtVisitorId || '' },
-              { label: 'Organization', key: 'organization' as const, value: editForm.organization || '' },
-            ].map(({ label, key, value }) => (
-              <div key={key}>
-                <Label>{label}</Label>
-                {isEditing ? (
-                  <Input
-                    value={value}
-                    onChange={(e) => setEditForm({ ...editForm, [key]: e.target.value })}
-                    className="mt-1.5"
-                  />
-                ) : (
-                  <div className="mt-1.5 text-sm py-2 px-3 border rounded-md bg-muted/30">{value || '—'}</div>
-                )}
-              </div>
-            ))}
-          </CardContent>
-          <CardFooter className="flex gap-2">
-            {isEditing ? (
-              <>
-                <Button onClick={handleSaveProfile} className="flex-1">Save Changes</Button>
-                <Button variant="outline" onClick={handleCancelEdit} className="flex-1">Cancel</Button>
-              </>
-            ) : (
-              <Button onClick={() => setIsEditing(true)} className="flex-1">Edit Profile</Button>
-            )}
-          </CardFooter>
-        </Card>
-
-        <div className="space-y-3">
-          <Button variant="outline" className="w-full justify-start gap-2" onClick={() => setSettingsOpen(true)}>
-            <Settings className="h-4 w-4" /> Settings
-          </Button>
-          <Button variant="destructive" className="w-full justify-start gap-2" onClick={handleLogout}>
-            <LogOut className="h-4 w-4" /> Logout &amp; Clear Data
-          </Button>
+        {/* ADDITIONAL FEATURES */}
+        <div>
+          <div className="px-4 pb-2 text-xs font-semibold text-muted-foreground tracking-wider">ADDITIONAL FEATURES</div>
+          <div className="bg-card border rounded-xl overflow-hidden">
+            {renderItem('Home Screen widgets')}
+          </div>
         </div>
 
-        <p className="text-xs text-center text-muted-foreground pt-4">
-          Your data is stored locally on this device.
-        </p>
+        {/* SUPPORT */}
+        <div>
+          <div className="px-4 pb-2 text-xs font-semibold text-muted-foreground tracking-wider">SUPPORT</div>
+          <div className="bg-card border rounded-xl overflow-hidden">
+            {renderItem('Email Support')}
+            {renderItem('Advanced')}
+            {renderItem('Help Center', 'CaseLog support')}
+          </div>
+        </div>
+
+        {/* ABOUT */}
+        <div>
+          <div className="px-4 pb-2 text-xs font-semibold text-muted-foreground tracking-wider">ABOUT</div>
+          <div className="bg-card border rounded-xl overflow-hidden">
+            {renderItem('Refer a friend')}
+            {renderItem('Rate in the App Store')}
+            {renderItem('Follow CaseLog')}
+          </div>
+        </div>
+
+        {/* APP */}
+        <div>
+          <div className="px-4 pb-2 text-xs font-semibold text-muted-foreground tracking-wider">APP</div>
+          <div className="bg-card border rounded-xl overflow-hidden">
+            {renderItem('Acknowledgements')}
+            {renderItem('Version', '0.1.0')}
+          </div>
+        </div>
+
+        {/* Sign out */}
+        <div className="pt-4">
+          <button
+            onClick={() => handleItemClick('Sign out')}
+            className="w-full text-center py-3 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-xl border border-red-200 dark:border-red-900 active:bg-red-100"
+          >
+            Sign out
+          </button>
+        </div>
+
+        <div className="h-8" /> {/* extra space for bottom nav */}
       </div>
     );
   };
