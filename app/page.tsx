@@ -877,11 +877,6 @@ export default function CaseLogApp() {
         existing={editingExpense}
       />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
-
-      {/* Footer personality */}
-      <footer className="border-t py-4 text-center text-xs text-muted-foreground mb-16 md:mb-0">
-        CaseLog • Offline-first. Your data never leaves this device. • Capture once. Bill correctly.
-      </footer>
     </div>
   );
 }

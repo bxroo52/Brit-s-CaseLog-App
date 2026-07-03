@@ -33,8 +33,6 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
     activityType: 'Contact',
     billableHours: 1,
     description: '',
-    startTime: '',
-    endTime: '',
   });
 
   const [isTiming, setIsTiming] = useState(false);
@@ -50,8 +48,6 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
         activityType: existingEntry.activityType,
         billableHours: existingEntry.billableHours,
         description: existingEntry.description,
-        startTime: existingEntry.startTime || '',
-        endTime: existingEntry.endTime || '',
       });
     } else if (defaultCaseId) {
       setForm((f) => ({ ...f, caseId: defaultCaseId }));
@@ -76,15 +72,8 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
       const now = new Date();
       setTimerStart(now);
       setIsTiming(true);
-      const hh = now.getHours().toString().padStart(2, '0');
-      const mm = now.getMinutes().toString().padStart(2, '0');
-      setForm((f) => ({ ...f, startTime: `${hh}:${mm}` }));
       toast.info('Timer started. Go do the thing.');
     } else {
-      const now = new Date();
-      const hh = now.getHours().toString().padStart(2, '0');
-      const mm = now.getMinutes().toString().padStart(2, '0');
-      setForm((f) => ({ ...f, endTime: `${hh}:${mm}` }));
       setIsTiming(false);
       setTimerStart(null);
       toast.success('Timer stopped. Log it before you forget.');
@@ -137,8 +126,6 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
       activityType: 'Contact',
       billableHours: 1,
       description: '',
-      startTime: '',
-      endTime: '',
     });
     setIsTiming(false);
     setTimerStart(null);
@@ -223,27 +210,6 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
             {isTiming && (
               <div className="text-[10px] text-amber-600 mt-1">Timer running — values update live. Stop when done.</div>
             )}
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1">
-              <Label>Start</Label>
-              <Input
-                type="time"
-                value={form.startTime}
-                onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-                className="mt-1.5"
-              />
-            </div>
-            <div className="flex-1">
-              <Label>End</Label>
-              <Input
-                type="time"
-                value={form.endTime}
-                onChange={(e) => setForm({ ...form, endTime: e.target.value })}
-                className="mt-1.5"
-              />
-            </div>
           </div>
 
           <div>
