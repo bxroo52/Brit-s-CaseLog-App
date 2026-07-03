@@ -5,16 +5,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useAppStore } from '@/stores/useAppStore';
-import { UserProfile, Case, TimeEntry, Expense } from '@/types';
+import { UserProfile } from '@/types';
 import { toast } from 'sonner';
 import { useSync } from '@/hooks/useSync';
 import { simulateOfflineMode, getPendingQueueItems } from '@/lib/sync';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { db } from '@/lib/db';
-import { useTheme } from "next-themes";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ACTIVITY_TYPES, DEFAULT_HOURLY_RATE } from '@/lib/constants';
+import { getActivityRates, setActivityRate, initializeDefaultActivityRates } from '@/lib/db';
 
 interface SettingsDialogProps {
   open: boolean;
@@ -22,32 +21,69 @@ interface SettingsDialogProps {
 }
 
 export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
-  const { profile, saveProfile } = useAppStore();
-  const { theme, setTheme } = useTheme();
+  const { profile, saveProfile, user, saveActivityRate: storeSaveRate, loadActivityRates } = useAppStore();
   const [form, setForm] = useState<Partial<UserProfile>>({});
+  const [rates, setRates] = useState<Record<string, number>>({});
+  const [savingRates, setSavingRates] = useState(false);
 
   useEffect(() => {
     if (profile) {
-      setForm({ ...profile });
+      setForm({ name: profile.name, email: profile.email, phone: profile.phone });
     }
   }, [profile, open]);
 
-  // Sync current theme from next-themes to form (or local)
-  const [selectedTheme, setSelectedTheme] = useState<string>(theme || 'system');
-
+  // Load activity rates when dialog opens
   useEffect(() => {
-    if (theme) {
-      setSelectedTheme(theme);
+    if (open) {
+      const userId = user?.id;
+      initializeDefaultActivityRates(userId).then(() => {
+        getActivityRates(userId).then((loaded) => {
+          const map: Record<string, number> = {};
+          ACTIVITY_TYPES.forEach((act) => {
+            const found = loaded.find(r => r.activityName === act);
+            map[act] = found ? found.hourlyRate : DEFAULT_HOURLY_RATE;
+          });
+          setRates(map);
+        });
+      });
     }
-  }, [theme]);
+  }, [open, user]);
 
   const handleSave = async () => {
     try {
-      await saveProfile(form);
-      toast.success('Profile saved. Your invoices will look sharp.');
+      // Only save the kept profile fields
+      const cleanForm = {
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
+      };
+      await saveProfile(cleanForm);
+      toast.success('Profile saved.');
       onOpenChange(false);
     } catch {
       toast.error('Failed to save settings.');
+    }
+  };
+
+  const handleRateChange = (activity: string, value: string) => {
+    const num = parseFloat(value);
+    setRates((prev) => ({
+      ...prev,
+      [activity]: isNaN(num) ? 0 : Math.max(0, Math.round(num * 100) / 100),
+    }));
+  };
+
+  const saveRate = async (activity: string) => {
+    const rate = rates[activity];
+    if (rate === undefined) return;
+    setSavingRates(true);
+    try {
+      await storeSaveRate(activity, rate);
+      toast.success(`Rate for ${activity} saved.`);
+    } catch {
+      toast.error('Failed to save rate.');
+    } finally {
+      setSavingRates(false);
     }
   };
 
@@ -59,125 +95,49 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-y-auto space-y-3 py-0.5 pr-1 -mr-1">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            <div>
-              <Label>Your Name</Label>
-              <Input value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} className="mt-1.5" />
+          <div>
+            <Label>Your Name</Label>
+            <Input value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} className="mt-1.5" />
+          </div>
+
+          <div>
+            <Label>Email</Label>
+            <Input value={form.email || ''} onChange={(e) => setForm({ ...form, email: e.target.value })} className="mt-1.5" />
+          </div>
+
+          <div>
+            <Label>Phone</Label>
+            <Input value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="mt-1.5" />
+          </div>
+
+          {/* Activity Rates Section */}
+          <div className="border-t pt-3 mt-2 space-y-2">
+            <Label className="font-medium">Activity Rates</Label>
+            <p className="text-[10px] text-muted-foreground">Set your hourly rate for each activity type (used in Log Time).</p>
+            <div className="space-y-2">
+              {ACTIVITY_TYPES.map((activity) => {
+                const rate = rates[activity] ?? DEFAULT_HOURLY_RATE;
+                return (
+                  <div key={activity} className="flex items-center justify-between gap-2">
+                    <span className="text-sm flex-1">{activity}</span>
+                    <div className="flex items-center gap-1 w-28">
+                      <span className="text-muted-foreground text-xs">$</span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={rate === 0 ? '' : rate.toFixed(2)}
+                        onChange={(e) => handleRateChange(activity, e.target.value)}
+                        onBlur={() => saveRate(activity)}
+                        className="h-8 text-right font-mono text-sm"
+                        placeholder={DEFAULT_HOURLY_RATE.toFixed(2)}
+                        disabled={savingRates}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div>
-              <Label>Title / Role</Label>
-              <Input value={form.title || ''} onChange={(e) => setForm({ ...form, title: e.target.value })} className="mt-1.5" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            <div>
-              <Label>Email</Label>
-              <Input value={form.email || ''} onChange={(e) => setForm({ ...form, email: e.target.value })} className="mt-1.5" />
-            </div>
-            <div>
-              <Label>Phone</Label>
-              <Input value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="mt-1.5" />
-            </div>
-          </div>
-
-          <div>
-            <Label>Street Address</Label>
-            <Input value={form.address || ''} onChange={(e) => setForm({ ...form, address: e.target.value })} className="mt-1.5" />
-          </div>
-          <div>
-            <Label>City, State, ZIP</Label>
-            <Input value={form.cityStateZip || ''} onChange={(e) => setForm({ ...form, cityStateZip: e.target.value })} className="mt-1.5" />
-          </div>
-
-          <div>
-            <Label>Court Visitor ID (optional)</Label>
-            <Input value={form.courtVisitorId || ''} onChange={(e) => setForm({ ...form, courtVisitorId: e.target.value })} className="mt-1.5" />
-          </div>
-
-          <div>
-            <Label>Organization</Label>
-            <Input value={form.organization || 'Alaska Court System'} onChange={(e) => setForm({ ...form, organization: e.target.value })} className="mt-1.5" placeholder="Alaska Court System" />
-          </div>
-
-          <div>
-            <Label>Theme</Label>
-            <Select value={selectedTheme} onValueChange={(val) => {
-              if (val) {
-                setSelectedTheme(val);
-                setTheme(val as 'light' | 'dark' | 'system');
-                // Force class update on html for immediate effect
-                const html = document.documentElement;
-                if (val === 'dark') {
-                  html.classList.add('dark');
-                  html.classList.remove('light');
-                } else if (val === 'light') {
-                  html.classList.add('light');
-                  html.classList.remove('dark');
-                } else {
-                  // system
-                  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                  if (prefersDark) {
-                    html.classList.add('dark');
-                    html.classList.remove('light');
-                  } else {
-                    html.classList.add('light');
-                    html.classList.remove('dark');
-                  }
-                }
-              }
-            }}>
-              <SelectTrigger className="mt-1.5">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="light">Light</SelectItem>
-                <SelectItem value="dark">Dark</SelectItem>
-                <SelectItem value="system">System</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Changes apply immediately.</p>
-          </div>
-
-          <div>
-            <Label>Logo (optional - small image for invoices)</Label>
-            <div className="flex items-center gap-3 mt-1.5">
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  const reader = new FileReader();
-                  reader.onload = () => {
-                    setForm({ ...form, logoDataUrl: reader.result as string });
-                  };
-                  reader.readAsDataURL(file);
-                }}
-                className="text-sm"
-              />
-              {form.logoDataUrl && (
-                <img src={form.logoDataUrl} alt="Logo preview" className="h-9 w-auto rounded border object-contain" />
-              )}
-              {form.logoDataUrl && (
-                <Button variant="ghost" size="sm" onClick={() => setForm({ ...form, logoDataUrl: undefined })}>Remove</Button>
-              )}
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Stored locally. Appears on generated PDFs. (Small preview above)</p>
-            {form.logoDataUrl && (
-              <div className="text-[10px] text-muted-foreground">Will appear scaled in invoice header.</div>
-            )}
-          </div>
-
-          <div>
-            <Label>Invoice Footer Note</Label>
-            <Textarea
-              value={form.invoiceNotes || ''}
-              onChange={(e) => setForm({ ...form, invoiceNotes: e.target.value })}
-              className="mt-1.5"
-              rows={2}
-            />
-            <p className="text-xs text-muted-foreground mt-0.5">Professional text only. Appears on every invoice.</p>
           </div>
 
           {/* PWA Install Prompt */}

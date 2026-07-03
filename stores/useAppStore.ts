@@ -16,6 +16,8 @@ import {
   CaseFormData,
   TimeEntryFormData,
   ExpenseFormData,
+  ActivityRate,
+  RateChangeLog,
 } from '@/types';
 import {
   createCase,
@@ -34,11 +36,17 @@ import {
   getAllExpenses,
   getUserProfile,
   updateUserProfile,
+  getActivityRates,
+  setActivityRate,
+  initializeDefaultActivityRates,
+  logRateChange,
+  getRateChangeLogs,
   buildMonthlyBillingSummary,
   queueChange,
   db,
 } from '@/lib/db';
 import { getBillingMonth, roundToNearestTenth, calculateAmount } from '@/lib/db';
+import { DEFAULT_HOURLY_RATE } from '@/lib/constants';
 import { format } from 'date-fns';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
@@ -76,6 +84,9 @@ interface AppState {
   user: any | null;
   isAuthenticated: boolean;
 
+  // UI Prefs (persisted)
+  notificationsEnabled: boolean;
+
   // Actions - Cases
   loadAllData: () => Promise<void>;
   addCase: (data: CaseFormData) => Promise<Case>;
@@ -99,6 +110,14 @@ interface AppState {
   // Profile
   loadProfile: () => Promise<void>;
   saveProfile: (updates: Partial<UserProfile>) => Promise<void>;
+
+  // Activity Rates
+  activityRates: ActivityRate[];
+  rateChangeLogs: RateChangeLog[];
+  loadActivityRates: () => Promise<void>;
+  saveActivityRate: (activityName: string, hourlyRate: number) => Promise<void>;
+  getActivityRate: (activityName: string) => number;
+  loadRateChangeLogs: () => Promise<void>;
 
   // Billing
   setSelectedMonth: (month: string) => void;
@@ -129,6 +148,10 @@ interface AppState {
   resetPassword: (email: string) => Promise<void>;
   setUser: (user: any | null) => void;
 
+  // UI Prefs actions
+  setNotificationsEnabled: (enabled: boolean) => void;
+  claimLegacyDataForCurrentUser: () => Promise<void>;
+
   // Derived
   getOpenCases: () => Case[];
   getFilteredOpenCases: () => Case[];
@@ -145,6 +168,10 @@ export const useAppStore = create<AppState>()(
       timeEntries: [],
       expenses: [],
       profile: null,
+
+      // Activity Rates
+      activityRates: [],
+      rateChangeLogs: [],
 
       isLoading: false,
       selectedMonth: currentMonth,
@@ -169,16 +196,28 @@ export const useAppStore = create<AppState>()(
       user: null,
       isAuthenticated: false,
 
+      // UI Prefs
+      notificationsEnabled: false,
+
       // ---- Load ----
       loadAllData: async () => {
         set({ isLoading: true });
         try {
-          const [cases, timeEntries, expenses] = await Promise.all([
-            getAllCases(),
-            getAllTimeEntries(),
-            getAllExpenses(),
+          const currentUserId = get().user?.id;
+          const [cases, timeEntriesRaw, expenses] = await Promise.all([
+            getAllCases(currentUserId),
+            getAllTimeEntries(currentUserId),
+            getAllExpenses(currentUserId),
           ]);
+          // Backfill new fields for legacy entries (preserve historical)
+          const timeEntries = timeEntriesRaw.map((t: any) => ({
+            ...t,
+            activityRate: t.activityRate ?? t.hourlyRate ?? DEFAULT_HOURLY_RATE,
+            totalAmount: t.totalAmount ?? t.amount ?? 0,
+          }));
           set({ cases, timeEntries, expenses, isLoading: false });
+          // also load rates (non-blocking if fails)
+          get().loadActivityRates().catch(() => {});
           get().refreshSyncStatus();
         } catch (e) {
           console.error('Failed to load data', e);
@@ -191,12 +230,48 @@ export const useAppStore = create<AppState>()(
         set({ profile });
       },
 
+      // ---- Activity Rates ----
+      loadActivityRates: async () => {
+        const currentUserId = get().user?.id;
+        let rates = await getActivityRates(currentUserId);
+        // Ensure defaults for all activities if missing
+        await initializeDefaultActivityRates(currentUserId);
+        rates = await getActivityRates(currentUserId);
+        set({ activityRates: rates });
+        // also refresh logs
+        const logs = await getRateChangeLogs(currentUserId);
+        set({ rateChangeLogs: logs });
+      },
+
+      saveActivityRate: async (activityName, hourlyRate) => {
+        const currentUserId = get().user?.id;
+        await setActivityRate(activityName, hourlyRate, currentUserId);
+        // reload rates + logs (DB logs the change)
+        const rates = await getActivityRates(currentUserId);
+        const logs = await getRateChangeLogs(currentUserId);
+        set({ activityRates: rates, rateChangeLogs: logs });
+      },
+
+      getActivityRate: (activityName) => {
+        const rates = get().activityRates;
+        const found = rates.find(r => r.activityName === activityName);
+        return found ? found.hourlyRate : DEFAULT_HOURLY_RATE;
+      },
+
+      loadRateChangeLogs: async () => {
+        const currentUserId = get().user?.id;
+        const logs = await getRateChangeLogs(currentUserId);
+        set({ rateChangeLogs: logs });
+      },
+
       // ---- Cases ----
       addCase: async (data: CaseFormData) => {
         // Quick create pattern - direct Dexie + queue
         const now = new Date().toISOString();
+        const currentUserId = get().user?.id;
         const newCase = {
           id: crypto.randomUUID(),
+          userId: currentUserId,
           ...data,
           createdAt: now,
           updatedAt: now,
@@ -247,19 +322,23 @@ export const useAppStore = create<AppState>()(
         const rounded = roundToNearestTenth(data.billableHours);
         const billingMonth = getBillingMonth(data.date);
 
-        const caseRecord = await db.cases.get(data.caseId);
-        const rate = caseRecord?.hourlyRate ?? (data as any).hourlyRate ?? 0;
-
+        // Use activity rate (never case rate for time logging now)
+        const rate = get().getActivityRate(data.activityType);
         const amount = calculateAmount(rounded, rate);
+        const currentUserId = get().user?.id;
 
         const newEntry = {
           id: crypto.randomUUID(),
+          userId: currentUserId,
           ...data,
           billableHoursRounded: rounded,
-          hourlyRate: rate,
-          amount,
+          hourlyRate: rate,           // compat
+          amount,                     // compat
+          activityRate: rate,
+          totalAmount: amount,
           billingMonth,
           billingStatus: 'Pending' as const,
+          isOpenCourt: data.isOpenCourt ?? (data.activityType === 'Court'),
           updatedAt: new Date().toISOString(),
           synced: false,
           isDeleted: false,
@@ -274,7 +353,30 @@ export const useAppStore = create<AppState>()(
       },
 
       editTimeEntry: async (id, updates) => {
-        const updated = await updateTimeEntry(id, updates);
+        const existing = get().timeEntries.find(t => t.id === id);
+        let finalUpdates = { ...updates };
+        if (updates.activityType || updates.billableHours !== undefined) {
+          const newAct = updates.activityType || existing?.activityType;
+          const hours = updates.billableHours !== undefined ? updates.billableHours : existing?.billableHours;
+          if (newAct && hours !== undefined) {
+            // Preserve historical rate if activity not changed; only use current setting if activity is new/changed
+            const isActivityChanging = !!updates.activityType && updates.activityType !== existing?.activityType;
+            const rate = isActivityChanging ? get().getActivityRate(newAct) : (existing?.activityRate ?? existing?.hourlyRate ?? get().getActivityRate(newAct));
+            const rounded = roundToNearestTenth(hours);
+            finalUpdates = {
+              ...finalUpdates,
+              activityType: newAct,
+              billableHours: hours,
+              billableHoursRounded: rounded,
+              hourlyRate: rate,
+              amount: calculateAmount(rounded, rate),
+              activityRate: rate,
+              totalAmount: calculateAmount(rounded, rate),
+              isOpenCourt: (updates as any).isOpenCourt ?? (newAct === 'Court'),
+            } as any;
+          }
+        }
+        const updated = await updateTimeEntry(id, finalUpdates);
         set((state) => ({
           timeEntries: state.timeEntries.map((t) => (t.id === id ? updated : t)),
         }));
@@ -298,14 +400,17 @@ export const useAppStore = create<AppState>()(
       },
 
       getPendingForMonth: async (month) => {
-        return getPendingTimeEntriesForMonth(month);
+        const currentUserId = get().user?.id;
+        return getPendingTimeEntriesForMonth(month, currentUserId);
       },
 
       // ---- Expenses ----
       addExpense: async (data) => {
         // In Quick Log save - direct Dexie + queue pattern
+        const currentUserId = get().user?.id;
         const newExpense = {
           id: crypto.randomUUID(),
+          userId: currentUserId,
           ...data,
           updatedAt: new Date().toISOString(),
           synced: false,
@@ -356,21 +461,23 @@ export const useAppStore = create<AppState>()(
       },
 
       loadBillingSummary: async (month) => {
-        const summary = await buildMonthlyBillingSummary(month);
+        const currentUserId = get().user?.id;
+        const summary = await buildMonthlyBillingSummary(month, currentUserId);
         set({ billingSummary: summary });
       },
 
       generateBilling: async (month) => {
         set({ isGenerating: true });
         try {
+          const currentUserId = get().user?.id;
           // Build clean data
-          const summary = await buildMonthlyBillingSummary(month);
+          const summary = await buildMonthlyBillingSummary(month, currentUserId);
 
           // Mark pending time entries for the month as Billed
-          await markTimeEntriesAsBilled(month);
+          await markTimeEntriesAsBilled(month, currentUserId);
 
           // Reload time entries so UI reflects Billed status
-          const freshTimes = await getAllTimeEntries();
+          const freshTimes = await getAllTimeEntries(currentUserId);
           set({
             timeEntries: freshTimes,
             billingSummary: summary,
@@ -394,6 +501,18 @@ export const useAppStore = create<AppState>()(
       // ---- Auth actions (Supabase) ----
       setUser: (user) => set({ user, isAuthenticated: !!user }),
 
+      setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
+
+      // Claim any legacy (pre-userId) data for the current logged-in user for isolation
+      claimLegacyDataForCurrentUser: async () => {
+        const uid = get().user?.id;
+        if (!uid) return;
+        const now = new Date().toISOString();
+        await db.cases.filter((c: any) => !c.userId).modify({ userId: uid, updatedAt: now, synced: false });
+        await db.timeEntries.filter((e: any) => !e.userId).modify({ userId: uid, updatedAt: now, synced: false });
+        await db.expenses.filter((e: any) => !e.userId).modify({ userId: uid, updatedAt: now, synced: false });
+      },
+
       signUp: async (email, password, userId) => {
         if (!isSupabaseConfigured || !supabase) {
           toast.error('Supabase not configured. Auth requires Supabase.');
@@ -408,13 +527,25 @@ export const useAppStore = create<AppState>()(
             },
           });
           if (error) throw error;
-          if (data.user) {
-            set({ user: data.user, isAuthenticated: true });
-            // Also save initial profile if provided
+
+          // When "Confirm email" is disabled in Supabase project settings,
+          // signUp returns a session and the user can be logged in immediately.
+          if (data.session?.user) {
+            set({ user: data.session.user, isAuthenticated: true });
             if (userId) {
               await get().saveProfile({ name: userId });
             }
-            toast.success('Account created! Check your email to confirm.');
+            await get().claimLegacyDataForCurrentUser();
+            // Load user's (newly created) data
+            await get().loadAllData();
+            toast.success('Account created and logged in!');
+          } else if (data.user) {
+            // Email confirmation still required by project settings.
+            // Do not mark as authenticated yet.
+            if (userId) {
+              await get().saveProfile({ name: userId });
+            }
+            toast.success('Account created! Check your email to confirm, then sign in.');
           }
         } catch (e: any) {
           toast.error(e.message || 'Sign up failed.');
@@ -432,6 +563,9 @@ export const useAppStore = create<AppState>()(
           if (error) throw error;
           if (data.user) {
             set({ user: data.user, isAuthenticated: true });
+            await get().claimLegacyDataForCurrentUser();
+            // Load only this user's data (cases, entries, expenses)
+            await get().loadAllData();
             toast.success('Logged in successfully.');
           }
         } catch (e: any) {
@@ -444,7 +578,7 @@ export const useAppStore = create<AppState>()(
         if (supabase) {
           await supabase.auth.signOut();
         }
-        set({ user: null, isAuthenticated: false, cases: [], timeEntries: [], expenses: [], profile: null });
+        set({ user: null, isAuthenticated: false, cases: [], timeEntries: [], expenses: [], activityRates: [], rateChangeLogs: [], profile: null });
         toast('Signed out.');
       },
 
@@ -496,7 +630,7 @@ export const useAppStore = create<AppState>()(
         const { clearAllLocalData } = await import('@/lib/sync');
         if (!confirm('Permanently delete ALL local cases, logs and queue?')) return;
         await clearAllLocalData();
-        set({ cases: [], timeEntries: [], expenses: [], pendingChangesCount: 0 });
+        set({ cases: [], timeEntries: [], expenses: [], activityRates: [], rateChangeLogs: [], pendingChangesCount: 0 });
         toast('Local data wiped.');
         announce('Local data wiped.', false);
       },
@@ -511,13 +645,21 @@ export const useAppStore = create<AppState>()(
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           set({ user: session.user, isAuthenticated: true });
+          await get().claimLegacyDataForCurrentUser();
+          // Ensure we load only this user's data (in case initial loadAll ran pre-auth)
+          await get().loadAllData();
         }
-        // Listen for auth changes
+        // Listen for auth changes (e.g. login via listener, or token refresh)
         supabase.auth.onAuthStateChange((_event, session) => {
           if (session?.user) {
             set({ user: session.user, isAuthenticated: true });
+            get().claimLegacyDataForCurrentUser().then(() => {
+              get().loadAllData().catch(() => {});
+            }).catch(() => {});
           } else {
             set({ user: null, isAuthenticated: false });
+            // Clear in-memory on signout via listener
+            set({ cases: [], timeEntries: [], expenses: [] });
           }
         });
       },
@@ -526,7 +668,9 @@ export const useAppStore = create<AppState>()(
         const { cases } = get();
         if (cases.length > 0) return;
 
+        const currentUserId = get().user?.id;
         const demoCase = await createCase({
+          userId: currentUserId,
           respondentName: 'Smith, Jordan',
           caseNumber: '3AN-25-00487',
           assignmentType: 'Review',
@@ -538,6 +682,7 @@ export const useAppStore = create<AppState>()(
 
         const today = new Date().toISOString().slice(0, 10);
         await createTimeEntry({
+          userId: currentUserId,
           caseId: demoCase.id,
           date: today,
           activityType: 'Home Visit',
@@ -548,6 +693,7 @@ export const useAppStore = create<AppState>()(
         } as any);
 
         await createTimeEntry({
+          userId: currentUserId,
           caseId: demoCase.id,
           date: today,
           activityType: 'Report Writing',
@@ -556,6 +702,7 @@ export const useAppStore = create<AppState>()(
         } as any);
 
         await createExpense({
+          userId: currentUserId,
           caseId: demoCase.id,
           date: today,
           expenseType: 'Mileage',
@@ -678,6 +825,7 @@ export const useAppStore = create<AppState>()(
         dateFilterTo: state.dateFilterTo,
         hourlyRateMin: state.hourlyRateMin,
         hourlyRateMax: state.hourlyRateMax,
+        notificationsEnabled: state.notificationsEnabled,
       }),
     }
   )

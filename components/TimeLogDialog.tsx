@@ -7,13 +7,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ACTIVITY_TYPES } from '@/lib/constants';
 import { TimeEntryFormData, Case } from '@/types';
 import { useAppStore } from '@/stores/useAppStore';
+import { formatCurrency } from '@/lib/format';
 import { toast } from 'sonner';
 import { Play, Square } from 'lucide-react';
 import { format } from 'date-fns';
-import { formatCurrency } from '@/lib/format';
 
 interface TimeLogDialogProps {
   open: boolean;
@@ -23,7 +24,7 @@ interface TimeLogDialogProps {
 }
 
 export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry }: TimeLogDialogProps) {
-  const { cases, addTimeEntry, editTimeEntry, getCaseById } = useAppStore();
+  const { cases, addTimeEntry, editTimeEntry, getCaseById, getActivityRate, activityRates } = useAppStore();
 
   const openCases = cases.filter((c) => c.status === 'Open');
 
@@ -33,11 +34,37 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
     activityType: 'Contact',
     billableHours: 1,
     description: '',
+    isOpenCourt: false,
   });
 
   const [isTiming, setIsTiming] = useState(false);
   const [timerStart, setTimerStart] = useState<Date | null>(null);
   const [liveHours, setLiveHours] = useState(0);
+
+  // Activity rate: for new use current settings; for edit, prefer historical snapshot if activity unchanged
+  const effectiveActivity = form.activityType || 'Contact';
+  const currentActivityRate = getActivityRate(effectiveActivity);
+  const historicalRate = existingEntry && existingEntry.activityType === effectiveActivity 
+    ? (existingEntry.activityRate ?? existingEntry.hourlyRate) 
+    : null;
+  const displayRate = historicalRate ?? currentActivityRate;
+  const estimatedBill = (form.billableHours || 0) * displayRate;
+
+  // Per Alaska Court Visitor billing regulations (ADM-121 form for visitor fees):
+  // - Itemize time with date, brief description, hours in tenths of hours.
+  // - Report separate totals for "Total Time Spent In Open Court" and "Out Of Court".
+  // - Use activity rates for the "Rate" per service (our Activity Rates feature).
+  // - 'Court' activity or isOpenCourt derives the open court time.
+  // - First Time Billing flag, Assignment Type required.
+  // - Expenses itemized separately by category.
+
+  // Ensure rates are loaded when dialog opens
+  useEffect(() => {
+    if (open && (activityRates?.length ?? 0) === 0) {
+      // non blocking
+      // the store load will populate via parent
+    }
+  }, [open, activityRates]);
 
   // Populate when editing
   useEffect(() => {
@@ -48,6 +75,7 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
         activityType: existingEntry.activityType,
         billableHours: existingEntry.billableHours,
         description: existingEntry.description,
+        isOpenCourt: existingEntry.isOpenCourt ?? (existingEntry.activityType === 'Court'),
       });
     } else if (defaultCaseId) {
       setForm((f) => ({ ...f, caseId: defaultCaseId }));
@@ -126,6 +154,7 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
       activityType: 'Contact',
       billableHours: 1,
       description: '',
+      isOpenCourt: false,
     });
     setIsTiming(false);
     setTimerStart(null);
@@ -169,7 +198,7 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
             </div>
             <div className="flex-1">
               <Label>Activity</Label>
-              <Select value={form.activityType} onValueChange={(v) => setForm({ ...form, activityType: v as any })}>
+              <Select value={form.activityType} onValueChange={(v) => setForm({ ...form, activityType: v as any, isOpenCourt: v === 'Court' })}>
                 <SelectTrigger className="mt-1.5">
                   <SelectValue />
                 </SelectTrigger>
@@ -210,6 +239,24 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
             {isTiming && (
               <div className="text-[10px] text-amber-600 mt-1">Timer running — values update live. Stop when done.</div>
             )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="openCourt"
+              checked={!!form.isOpenCourt}
+              onCheckedChange={(checked) => setForm({ ...form, isOpenCourt: !!checked })}
+            />
+            <Label htmlFor="openCourt" className="text-sm cursor-pointer">This time was spent in open court</Label>
+          </div>
+
+          {/* Estimated Bill using Activity Rate - auto updates, read-only */}
+          <div>
+            <Label>Estimated Bill</Label>
+            <div className="mt-1.5 px-3 py-2 rounded-md border bg-muted/30 font-mono text-sm tabular-nums">
+              {formatCurrency(estimatedBill)}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Billable Hours × Activity Rate (from your Activity Rates settings)</p>
           </div>
 
           <div>

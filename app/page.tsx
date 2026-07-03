@@ -2,12 +2,14 @@
 
 import React, { useEffect, useState, useRef, memo } from 'react';
 import { useAppStore, initializeAppData } from '@/stores/useAppStore';
+import { useTheme } from 'next-themes';
 import { announce } from '@/lib/utils';
 import { AppHeader, BottomTabBar } from '@/components/AppHeader';
 import { CaseDialog } from '@/components/CaseDialog';
 import { TimeLogDialog } from '@/components/TimeLogDialog';
 import { ExpenseDialog } from '@/components/ExpenseDialog';
 import { SettingsDialog } from '@/components/SettingsDialog';
+import { ActivityRatesDialog } from '@/components/ActivityRatesDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,6 +31,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
   Plus,
   Clock,
@@ -136,9 +139,11 @@ const LoginScreen = memo<LoginScreenProps>(({ signIn, signUp, resetPassword, isS
     setAuthError('');
     try {
       await signUp(authEmail, authPassword, authUserId || undefined);
-      toast.success('Check your email to confirm signup, then sign in.');
-      setAuthView('login');
-      setAuthEmail('');
+      // Clear password (security) and optional UserID.
+      // Keep email so it's pre-filled when user switches to the login view
+      // (via the "Back to login" button) after confirming (if required).
+      // - If "Confirm email" OFF: store sets isAuthenticated=true and the whole
+      //   LoginScreen is replaced by the main app immediately (seamless login).
       setAuthPassword('');
       setAuthUserId('');
     } catch (e: any) {
@@ -378,6 +383,13 @@ export default function CaseLogApp() {
     signIn,
     signOut,
     resetPassword,
+    notificationsEnabled,
+    setNotificationsEnabled,
+    activityRates,
+    rateChangeLogs,
+    loadActivityRates,
+    saveActivityRate,
+    loadRateChangeLogs,
   } = useAppStore();
 
   const [activeView, setActiveView] = useState<View>('dashboard');
@@ -385,6 +397,200 @@ export default function CaseLogApp() {
   const handleSignOut = async () => {
     await signOut();
     setActiveView('dashboard');
+  };
+
+  // Account tab handlers - make items fully functional
+  const openAccountModal = (title: string, content: React.ReactNode) => {
+    setAccountModalTitle(title);
+    setAccountModalContent(content);
+    setAccountModalOpen(true);
+  };
+
+  const handleAccountItem = (label: string, subtext?: string) => {
+    if (label === 'Sign out') {
+      handleSignOut();
+      return;
+    }
+    if (label === 'Settings') {
+      setSettingsOpen(true);
+      return;
+    }
+
+    switch (label) {
+      case 'Activity Rates':
+        setActivityRatesOpen(true);
+        return;
+      case 'Dark mode': {
+        const current = theme || 'system';
+        const next = current === 'light' ? 'dark' : current === 'dark' ? 'system' : 'light';
+        setTheme(next as 'light' | 'dark' | 'system');
+        toast.success(`Theme set to ${next}`);
+        return;
+      }
+      case 'Notifications': {
+        const newEnabled = !notificationsEnabled;
+        if (newEnabled) {
+          if (typeof Notification !== 'undefined') {
+            Notification.requestPermission().then((perm) => {
+              if (perm === 'granted') {
+                setNotificationsEnabled(true);
+                toast.success('Notifications enabled. You will receive alerts for important updates.');
+                // Demo notification
+                new Notification('CaseLog', { body: 'Notifications are now on! (demo)' });
+              } else {
+                toast.error('Notification permission denied. Enable in browser settings.');
+              }
+            });
+          } else {
+            setNotificationsEnabled(true);
+            toast.success('Notifications enabled (browser does not support native notifications).');
+          }
+        } else {
+          setNotificationsEnabled(false);
+          toast('Notifications disabled.');
+        }
+        return;
+      }
+      case 'Siri Shortcuts':
+        openAccountModal(
+          'Siri Shortcuts',
+          <div className="space-y-3 text-sm">
+            <p>Siri Shortcuts integration is coming soon.</p>
+            <p>You'll be able to quickly log time or view open cases using voice or the Shortcuts app on iOS.</p>
+            <p className="text-xs text-muted-foreground">In the meantime, try the PWA on your home screen for fast access.</p>
+            <Button variant="outline" size="sm" onClick={() => window.open('https://support.apple.com/guide/shortcuts/welcome/ios', '_blank')}>
+              Learn about iOS Shortcuts
+            </Button>
+          </div>
+        );
+        return;
+      case 'Integrations':
+        openAccountModal(
+          'Integrations',
+          <div className="space-y-3 text-sm">
+            <p>Future integrations coming soon:</p>
+            <ul className="list-disc pl-5 text-muted-foreground">
+              <li>Google Calendar</li>
+              <li>Outlook / Microsoft 365</li>
+              <li>QuickBooks / Xero export</li>
+              <li>Zapier / webhooks</li>
+            </ul>
+            <p className="text-xs">Check back after updates or email us your ideas.</p>
+          </div>
+        );
+        return;
+      case 'Home Screen widgets':
+        openAccountModal(
+          'Home Screen Widgets',
+          <div className="space-y-3 text-sm">
+            <p>To add CaseLog widgets on iOS:</p>
+            <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
+              <li>Long-press your home screen</li>
+              <li>Tap the + button (top left)</li>
+              <li>Search for CaseLog (once added as PWA)</li>
+              <li>Choose widget size and add</li>
+            </ol>
+            <p className="text-xs">On Android: long-press home → Widgets → look for PWA widgets if supported by your launcher.</p>
+            <p>Widget support coming in a future update.</p>
+          </div>
+        );
+        return;
+      case 'Email Support':
+        const subject = encodeURIComponent('CaseLog Support Request');
+        const body = encodeURIComponent('Hi CaseLog team,\n\n[Describe your issue or feedback here]\n\nApp version: 0.1.0\nDevice: [browser/OS]');
+        window.location.href = `mailto:support@caselog.example?subject=${subject}&body=${body}`;
+        toast.success('Opening your email app...');
+        return;
+      case 'Advanced':
+        openAccountModal(
+          'Advanced',
+          <div className="space-y-3 text-sm">
+            <p>Advanced options (coming in future releases):</p>
+            <ul className="list-disc pl-5">
+              <li>Data export / import (CSV, JSON, full backup)</li>
+              <li>Conflict resolution for sync</li>
+              <li>Custom fields for cases</li>
+              <li>Multi-user team accounts (Supabase)</li>
+            </ul>
+            <p className="text-xs text-muted-foreground">For now, use Settings for profile, or the main app features.</p>
+          </div>
+        );
+        return;
+      case 'Help Center':
+        openAccountModal(
+          'Help Center',
+          <div className="space-y-4 text-sm">
+            <div>
+              <div className="font-medium mb-1">Frequently Asked Questions</div>
+              <div className="space-y-2 text-muted-foreground">
+                <p><strong>Q: Does it work offline?</strong><br />Yes! All logging, cases, and billing PDFs are fully offline. Sync when online.</p>
+                <p><strong>Q: How do I bill the court?</strong><br />Log time/expenses against cases → Billing tab → Generate full package PDF.</p>
+                <p><strong>Q: Can multiple people use one device?</strong><br />Yes, each login uses their own Supabase user data (with user isolation).</p>
+              </div>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => toast.info('More help docs coming soon.')}>
+              View full documentation
+            </Button>
+          </div>
+        );
+        return;
+      case 'Refer a friend':
+        if (navigator.share) {
+          navigator.share({
+            title: 'CaseLog — Court Visitor Billing',
+            text: 'Check out CaseLog for simple offline-first court billing.',
+            url: window.location.origin,
+          }).then(() => toast.success('Thanks for sharing!')).catch(() => {});
+        } else {
+          // fallback
+          navigator.clipboard?.writeText(window.location.origin);
+          toast.success('Link copied to clipboard (share manually).');
+        }
+        return;
+      case 'Rate in the App Store':
+        // Since it's a PWA / web app, link to a placeholder App Store page or review prompt
+        const appStoreUrl = 'https://apps.apple.com/app/caselog/id000000000'; // placeholder
+        window.open(appStoreUrl, '_blank');
+        toast.info('Thanks! Rating helps us improve (this is a demo link).');
+        return;
+      case 'Follow CaseLog':
+        window.open('https://x.com', '_blank'); // or a real handle, placeholder
+        toast.info('Opening follow page...');
+        return;
+      case 'Acknowledgements':
+        openAccountModal(
+          'Acknowledgements',
+          <div className="space-y-3 text-sm max-h-[50dvh] overflow-auto">
+            <p>Built with ❤️ using these open source projects:</p>
+            <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-5">
+              <li>Next.js (React framework)</li>
+              <li>React 19 + TypeScript</li>
+              <li>Tailwind CSS + shadcn/ui</li>
+              <li>Dexie.js (IndexedDB)</li>
+              <li>Supabase (auth + optional sync)</li>
+              <li>next-themes (dark mode)</li>
+              <li>date-fns, lucide-react, sonner, jsPDF</li>
+              <li>Zustand (state)</li>
+              <li>PWA APIs, Service Worker</li>
+            </ul>
+            <p className="text-[10px]">Thanks to all the maintainers and the Alaska Court System community for inspiration.</p>
+          </div>
+        );
+        return;
+      case 'Version':
+        openAccountModal(
+          'App Version',
+          <div className="text-sm">
+            <p><strong>CaseLog</strong> version 0.1.0</p>
+            <p className="text-muted-foreground mt-2">Built for court visitors. Offline-first. Sync optional.</p>
+            <p className="text-[10px] mt-3">Last updated: July 2026</p>
+            <p className="text-[10px]">Running on {typeof navigator !== 'undefined' ? navigator.userAgent.split(' ').slice(0,3).join(' ') : 'web'}</p>
+          </div>
+        );
+        return;
+      default:
+        toast.info(`${label} tapped`);
+    }
   };
 
   const [caseDialogOpen, setCaseDialogOpen] = useState(false);
@@ -405,7 +611,17 @@ export default function CaseLogApp() {
   }, [isLoading]);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  const { theme, setTheme } = useTheme();
+
   const [billingMonth, setBillingMonth] = useState(selectedMonth);
+
+  // For Account tab modals / info screens
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
+  const [accountModalTitle, setAccountModalTitle] = useState('');
+  const [accountModalContent, setAccountModalContent] = useState<React.ReactNode>(null);
+
+  // Dedicated Activity Rates dialog
+  const [activityRatesOpen, setActivityRatesOpen] = useState(false);
 
   // Initialize Dexie + Zustand on mount
   useEffect(() => {
@@ -538,7 +754,8 @@ export default function CaseLogApp() {
       await generateBilling(billingMonth);
 
       // Rebuild fresh summary post-mark
-      const freshSummary = await buildMonthlyBillingSummary(billingMonth);
+      const currentUserId = user?.id;
+      const freshSummary = await buildMonthlyBillingSummary(billingMonth, currentUserId);
 
       // Generate ONE beautiful professional package PDF
       const doc = generateFullBillingPackagePDF(billingMonth, profile, freshSummary);
@@ -591,7 +808,7 @@ export default function CaseLogApp() {
 
     monthEntries.forEach((t) => {
       const c = getCaseById(t.caseId);
-      csv += `Time,${t.date},${c?.caseNumber || ''},${c?.respondentName || ''},${t.activityType},${t.billableHoursRounded},${t.hourlyRate},${t.amount},${t.billingStatus},"${t.description.replace(/"/g, '""')}"\n`;
+      csv += `Time,${t.date},${c?.caseNumber || ''},${c?.respondentName || ''},${t.activityType},${t.billableHoursRounded},${t.activityRate ?? t.hourlyRate},${t.totalAmount ?? t.amount},${t.billingStatus},"${t.description.replace(/"/g, '""')}"\n`;
     });
     monthExp.forEach((e) => {
       const c = getCaseById(e.caseId);
@@ -1253,22 +1470,14 @@ export default function CaseLogApp() {
   );
 
   const AccountView = () => {
-    const handleItemClick = (label: string) => {
-      if (label === 'Sign out') {
-        handleSignOut();
-        return;
-      }
-      if (label === 'Settings') {
-        setSettingsOpen(true);
-        return;
-      }
-      toast.info(`${label} tapped (demo)`);
-    };
+    // Dynamic labels for live state
+    const darkModeLabel = theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'System';
+    const notifLabel = notificationsEnabled ? 'On' : 'Off';
 
     const renderItem = (label: string, subtext?: string) => (
       <div
         key={label}
-        onClick={() => handleItemClick(label)}
+        onClick={() => handleAccountItem(label, subtext)}
         className="flex items-center justify-between px-4 py-3 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer active:bg-muted"
       >
         <div className="flex flex-col">
@@ -1285,10 +1494,11 @@ export default function CaseLogApp() {
         <div>
           <div className="px-4 pb-2 text-xs font-semibold text-muted-foreground tracking-wider">SETTINGS</div>
           <div className="bg-card border rounded-xl overflow-hidden">
+            {renderItem('Activity Rates')}
             {renderItem('Siri Shortcuts')}
             {renderItem('Integrations')}
-            {renderItem('Dark mode', 'Same as device')}
-            {renderItem('Notifications', 'Off')}
+            {renderItem('Dark mode', darkModeLabel)}
+            {renderItem('Notifications', notifLabel)}
           </div>
         </div>
 
@@ -1332,7 +1542,7 @@ export default function CaseLogApp() {
         {/* Sign out */}
         <div className="pt-4">
           <button
-            onClick={() => handleItemClick('Sign out')}
+            onClick={() => handleAccountItem('Sign out')}
             className="w-full text-center py-3 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-xl border border-red-200 dark:border-red-900 active:bg-red-100"
           >
             Sign out
@@ -1391,6 +1601,32 @@ export default function CaseLogApp() {
         existing={editingExpense}
       />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+
+      {/* Account modal / info screens */}
+      <Dialog open={accountModalOpen} onOpenChange={setAccountModalOpen}>
+        <DialogContent className="sm:max-w-md max-h-[85dvh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>{accountModalTitle}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto py-2 text-sm">
+            {accountModalContent}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAccountModalOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Activity Rates dedicated screen/dialog */}
+      <ActivityRatesDialog
+        open={activityRatesOpen}
+        onOpenChange={setActivityRatesOpen}
+        activityRates={activityRates}
+        rateChangeLogs={rateChangeLogs}
+        saveActivityRate={saveActivityRate}
+        loadActivityRates={loadActivityRates}
+        loadRateChangeLogs={loadRateChangeLogs}
+      />
     </div>
   );
 }

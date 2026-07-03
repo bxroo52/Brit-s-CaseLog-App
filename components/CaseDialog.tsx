@@ -41,6 +41,9 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
     status: existingCase?.status || 'Open',
     firstTimeBilling: existingCase?.firstTimeBilling ?? false,
     caseNotes: existingCase?.caseNotes || '',
+    appointmentDate: existingCase?.appointmentDate || '',
+    appointingJudge: existingCase?.appointingJudge || '',
+    natureOfCase: existingCase?.natureOfCase || '',
   }));
 
   const [caseNumberError, setCaseNumberError] = useState<string>('');
@@ -57,6 +60,9 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
         status: existingCase?.status || 'Open',
         firstTimeBilling: existingCase?.firstTimeBilling ?? false,
         caseNotes: existingCase?.caseNotes || '',
+        appointmentDate: existingCase?.appointmentDate || '',
+        appointingJudge: existingCase?.appointingJudge || '',
+        natureOfCase: existingCase?.natureOfCase || '',
       });
       setCaseNumberError('');
     }
@@ -87,10 +93,13 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
       return;
     }
 
-    // Provide default hourlyRate (now managed at time entry level)
+    // Provide default hourlyRate (now managed at time entry level via Activity Rates)
     const submitData: CaseFormData = {
       ...form,
       hourlyRate: existingCase?.hourlyRate ?? 0,
+      appointmentDate: form.appointmentDate || undefined,
+      appointingJudge: form.appointingJudge || undefined,
+      natureOfCase: form.natureOfCase || undefined,
     };
 
     try {
@@ -111,6 +120,9 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
           status: 'Open',
           firstTimeBilling: false,
           caseNotes: '',
+          appointmentDate: '',
+          appointingJudge: '',
+          natureOfCase: '',
         });
         setCaseNumberError('');
       }
@@ -191,6 +203,40 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
                 <SelectItem value="Closed">Closed</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="apptDate">Appointment Date (optional)</Label>
+              <Input
+                id="apptDate"
+                type="date"
+                value={form.appointmentDate || ''}
+                onChange={(e) => setForm({ ...form, appointmentDate: e.target.value })}
+                className="mt-1.5"
+              />
+            </div>
+            <div>
+              <Label htmlFor="judge">Appointing Judge (optional)</Label>
+              <Input
+                id="judge"
+                value={form.appointingJudge || ''}
+                onChange={(e) => setForm({ ...form, appointingJudge: e.target.value })}
+                placeholder="e.g. Judge Smith"
+                className="mt-1.5"
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="nature">Nature of Case (optional)</Label>
+            <Input
+              id="nature"
+              value={form.natureOfCase || ''}
+              onChange={(e) => setForm({ ...form, natureOfCase: e.target.value })}
+              placeholder="e.g. Guardianship review"
+              className="mt-1.5"
+            />
           </div>
 
           <div className="flex items-center gap-2 pt-1">

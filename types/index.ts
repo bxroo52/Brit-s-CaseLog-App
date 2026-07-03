@@ -12,13 +12,17 @@ export type CaseStatus = 'Open' | 'Closed';
 
 export interface Case {
   id: string;
+  userId?: string;
   respondentName: string;
   caseNumber: string;
   assignmentType: AssignmentType;
   status: CaseStatus;
-  hourlyRate: number;
+  hourlyRate: number; // legacy per-case rate (activity rates now preferred for time)
   firstTimeBilling: boolean;
   caseNotes?: string;
+  appointmentDate?: string; // for official forms (Date of Appointment)
+  appointingJudge?: string; // for official forms
+  natureOfCase?: string; // Description of Nature of Case
   updatedAt: string;      // ISO string
   isDeleted?: boolean;
   synced?: boolean;
@@ -27,7 +31,6 @@ export interface Case {
 
 export type ActivityType =
   | 'Contact'
-  | 'Home Visit'
   | 'Court'
   | 'Research'
   | 'Report Writing'
@@ -39,18 +42,23 @@ export type BillingStatus = 'Pending' | 'Billed';
 
 export interface TimeEntry {
   id: string;
+  userId?: string;
   caseId: string;
   date: string;
   activityType: string;
   billableHours: number;
   billableHoursRounded: number;
-  hourlyRate: number;
-  amount: number;
+  hourlyRate: number;        // kept for backward compat (== activityRate)
+  amount: number;            // kept for backward compat (== totalAmount)
+  activityRate: number;      // snapshot of rate at time of logging (from Activity Rates)
+  totalAmount: number;       // snapshot (billableHours * activityRate)
   description: string;
   startTime?: string;
   endTime?: string;
   billingMonth: string;
   billingStatus: 'Pending' | 'Billed';
+  // Incremental support for official form totals (derive from 'Court' activity or set explicitly)
+  isOpenCourt?: boolean;
   updatedAt: string;
   isDeleted?: boolean;
   synced?: boolean;
@@ -66,6 +74,7 @@ export type ExpenseType =
 
 export interface Expense {
   id: string;
+  userId?: string;
   caseId: string;
   date: string;
   expenseType: string;
@@ -120,7 +129,7 @@ export interface MonthlyBillingSummary {
 // Helper type for form state
 export type TimeEntryFormData = Omit<
   TimeEntry,
-  'id' | 'billableHoursRounded' | 'amount' | 'hourlyRate' | 'billingMonth' | 'billingStatus' | 'updatedAt' | 'synced' | 'isDeleted'
+  'id' | 'billableHoursRounded' | 'amount' | 'hourlyRate' | 'activityRate' | 'totalAmount' | 'billingMonth' | 'billingStatus' | 'updatedAt' | 'synced' | 'isDeleted'
 > & {
   caseId: string;
 };
@@ -128,6 +137,23 @@ export type TimeEntryFormData = Omit<
 export type ExpenseFormData = Omit<Expense, 'id' | 'updatedAt' | 'synced' | 'isDeleted'>;
 
 export type CaseFormData = Omit<Case, 'id' | 'createdAt' | 'updatedAt' | 'synced' | 'isDeleted'>;
+
+export interface ActivityRate {
+  id: string;
+  userId?: string;
+  activityName: string;
+  hourlyRate: number;
+  updatedAt: string;
+}
+
+export interface RateChangeLog {
+  id: string; // log_id
+  userId?: string;
+  activityName: string;
+  oldRate: number;
+  newRate: number;
+  changedAt: string;
+}
 
 // Outbox for sync queue
 export interface SyncQueueItem {

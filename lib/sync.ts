@@ -3,6 +3,59 @@ import { supabase } from './supabase';
 import { toast } from 'sonner';
 import { announce } from './utils';
 
+// Normalize camelCase (TS/Dexie) <-> snake_case (Supabase) for sync
+function toSupabasePayload(record: any) {
+  if (!record) return record;
+  const p = { ...record };
+  if (p.userId !== undefined) {
+    p.user_id = p.userId;
+    // keep userId too? or delete, but to be safe for local keep, but for upsert send both ok-ish
+  }
+  // Map other common if needed (for robustness)
+  if (p.respondentName !== undefined) p.respondent_name = p.respondentName;
+  if (p.caseNumber !== undefined) p.case_number = p.caseNumber;
+  if (p.assignmentType !== undefined) p.assignment_type = p.assignmentType;
+  if (p.hourlyRate !== undefined) p.hourly_rate = p.hourlyRate;
+  if (p.firstTimeBilling !== undefined) p.first_time_billing = p.firstTimeBilling;
+  if (p.caseNotes !== undefined) p.case_notes = p.caseNotes;
+  if (p.billableHoursRounded !== undefined) p.billable_hours_rounded = p.billableHoursRounded;
+  if (p.activityType !== undefined) p.activity_type = p.activityType;
+  if (p.expenseType !== undefined) p.expense_type = p.expenseType;
+  if (p.billingStatus !== undefined) p.billing_status = p.billingStatus;
+  if (p.billingMonth !== undefined) p.billing_month = p.billingMonth;
+  if (p.createdAt !== undefined) p.created_at = p.createdAt;
+  if (p.updatedAt !== undefined) p.updated_at = p.updatedAt;
+  if (p.isDeleted !== undefined) p.is_deleted = p.isDeleted;
+  if (p.caseId !== undefined) p.case_id = p.caseId;
+  if (p.activityRate !== undefined) p.activity_rate = p.activityRate;
+  if (p.totalAmount !== undefined) p.total_amount = p.totalAmount;
+  return p;
+}
+
+function fromSupabaseRow(row: any) {
+  if (!row) return row;
+  const r = { ...row };
+  if (r.user_id !== undefined) r.userId = r.user_id;
+  if (r.respondent_name !== undefined) r.respondentName = r.respondent_name;
+  if (r.case_number !== undefined) r.caseNumber = r.case_number;
+  if (r.assignment_type !== undefined) r.assignmentType = r.assignment_type;
+  if (r.hourly_rate !== undefined) r.hourlyRate = r.hourly_rate;
+  if (r.first_time_billing !== undefined) r.firstTimeBilling = r.first_time_billing;
+  if (r.case_notes !== undefined) r.caseNotes = r.case_notes;
+  if (r.billable_hours_rounded !== undefined) r.billableHoursRounded = r.billable_hours_rounded;
+  if (r.activity_type !== undefined) r.activityType = r.activity_type;
+  if (r.expense_type !== undefined) r.expenseType = r.expense_type;
+  if (r.billing_status !== undefined) r.billingStatus = r.billing_status;
+  if (r.billing_month !== undefined) r.billingMonth = r.billing_month;
+  if (r.created_at !== undefined) r.createdAt = r.created_at;
+  if (r.updated_at !== undefined) r.updatedAt = r.updated_at;
+  if (r.is_deleted !== undefined) r.isDeleted = r.is_deleted;
+  if (r.case_id !== undefined) r.caseId = r.case_id;
+  if (r.activity_rate !== undefined) r.activityRate = r.activity_rate;
+  if (r.total_amount !== undefined) r.totalAmount = r.total_amount;
+  return r;
+}
+
 // --- Queue a change (call AFTER the optimistic local Dexie write) ---
 export async function queueChange(
   operation: 'upsert' | 'delete',
@@ -38,9 +91,10 @@ export async function processSyncQueue() {
         const remoteTable =
           item.table === 'timeEntries' ? 'time_entries' : item.table;
 
+        const payloadForSupabase = toSupabasePayload(item.payload);
         const { error } = await supabase
           .from(remoteTable)
-          .upsert(item.payload, { onConflict: 'id' });
+          .upsert(payloadForSupabase, { onConflict: 'id' });
 
         if (error) throw error;
       } else if (item.operation === 'delete') {
@@ -92,7 +146,7 @@ export async function pullLatestChanges(lastSync: string) {
 
   if (caseRows?.length) {
     const normalized = caseRows.map((c: any) => ({
-      ...c,
+      ...fromSupabaseRow(c),
       synced: true,
       isDeleted: c.is_deleted ?? c.isDeleted ?? false,
     }));
@@ -108,7 +162,7 @@ export async function pullLatestChanges(lastSync: string) {
 
   if (timeRows?.length) {
     const normalized = timeRows.map((t: any) => ({
-      ...t,
+      ...fromSupabaseRow(t),
       synced: true,
       isDeleted: t.is_deleted ?? t.isDeleted ?? false,
     }));
@@ -124,7 +178,7 @@ export async function pullLatestChanges(lastSync: string) {
 
   if (expRows?.length) {
     const normalized = expRows.map((e: any) => ({
-      ...e,
+      ...fromSupabaseRow(e),
       synced: true,
       isDeleted: e.is_deleted ?? e.isDeleted ?? false,
     }));
@@ -215,6 +269,8 @@ export async function clearAllLocalData() {
   await db.cases.clear();
   await db.timeEntries.clear();
   await db.expenses.clear();
+  await db.activityRates.clear();
+  await db.rateChangeLogs.clear();
 }
 
 // Auto-sync when we come back online

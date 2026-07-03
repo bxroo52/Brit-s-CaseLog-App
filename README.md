@@ -66,6 +66,7 @@ When you come back online:
 -- Core tables (matches Dexie models)
 create table if not exists cases (
   id uuid primary key,
+  user_id uuid references auth.users(id),
   respondent_name text not null,
   case_number text not null,
   assignment_type text,
@@ -81,6 +82,7 @@ create table if not exists cases (
 
 create table if not exists time_entries (
   id uuid primary key,
+  user_id uuid references auth.users(id),
   case_id uuid references cases(id) on delete cascade,
   date date,
   activity_type text,
@@ -100,6 +102,7 @@ create table if not exists time_entries (
 
 create table if not exists expenses (
   id uuid primary key,
+  user_id uuid references auth.users(id),
   case_id uuid references cases(id),
   date date,
   expense_type text,
@@ -115,12 +118,12 @@ alter table cases enable row level security;
 alter table time_entries enable row level security;
 alter table expenses enable row level security;
 
--- Basic policies (replace auth.uid() with your needs)
+-- Basic policies (use auth.uid() for production)
 create policy "Users can CRUD their own cases"
-  on cases for all using (true) with check (true);
+  on cases for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
--- Repeat similar simple policies for time_entries and expenses for testing.
--- For production, use proper auth.users and user_id columns.
+-- Repeat for time_entries and expenses (using user_id = auth.uid()).
+-- Make sure to add user_id column and update your RLS policies for data isolation.
 ```
 
 4. Restart dev server. Sync controls appear in Settings.

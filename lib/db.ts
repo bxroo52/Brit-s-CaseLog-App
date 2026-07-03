@@ -5,15 +5,18 @@
  */
 
 import Dexie, { Table } from 'dexie';
-import { Case, TimeEntry, Expense, UserProfile, SyncQueueItem } from '@/types';
+import { Case, TimeEntry, Expense, UserProfile, SyncQueueItem, ActivityRate, RateChangeLog } from '@/types';
 
 export type { SyncQueueItem } from '@/types';
 import { format, parseISO } from 'date-fns';
+import { DEFAULT_HOURLY_RATE } from '@/lib/constants';
 
 export class CaseLogDB extends Dexie {
   cases!: Table<Case>;
   timeEntries!: Table<TimeEntry>;
   expenses!: Table<Expense>;
+  activityRates!: Table<ActivityRate>;
+  rateChangeLogs!: Table<RateChangeLog>;
   syncQueue!: Table<SyncQueueItem>;
   profile!: Table<UserProfile>;
 
@@ -23,6 +26,33 @@ export class CaseLogDB extends Dexie {
       cases: 'id, respondentName, caseNumber, status, updatedAt, isDeleted, synced',
       timeEntries: 'id, caseId, date, activityType, billingMonth, updatedAt, isDeleted, synced',
       expenses: 'id, caseId, date, expenseType, updatedAt, isDeleted, synced',
+      syncQueue: '++id, table, recordId, timestamp, retryCount',
+      profile: 'id',
+    });
+    // v2: add userId for per-user data isolation (multi-user on same device / after login)
+    this.version(2).stores({
+      cases: 'id, userId, respondentName, caseNumber, status, updatedAt, isDeleted, synced',
+      timeEntries: 'id, userId, caseId, date, activityType, billingMonth, updatedAt, isDeleted, synced',
+      expenses: 'id, userId, caseId, date, expenseType, updatedAt, isDeleted, synced',
+      syncQueue: '++id, table, recordId, timestamp, retryCount',
+      profile: 'id',
+    });
+    // v3: add activityRates for per-activity hourly rates per user
+    this.version(3).stores({
+      cases: 'id, userId, respondentName, caseNumber, status, updatedAt, isDeleted, synced',
+      timeEntries: 'id, userId, caseId, date, activityType, billingMonth, updatedAt, isDeleted, synced',
+      expenses: 'id, userId, caseId, date, expenseType, updatedAt, isDeleted, synced',
+      activityRates: 'id, userId, activityName, updatedAt',
+      syncQueue: '++id, table, recordId, timestamp, retryCount',
+      profile: 'id',
+    });
+    // v4: optimize ActivityRates with unique per-user compound index; add rateChangeLogs for audit; optimize TimeEntries with rate/amount fields
+    this.version(4).stores({
+      cases: 'id, userId, respondentName, caseNumber, status, updatedAt, isDeleted, synced',
+      timeEntries: 'id, userId, caseId, date, activityType, activityRate, totalAmount, billingMonth, updatedAt, isDeleted, synced',
+      expenses: 'id, userId, caseId, date, expenseType, updatedAt, isDeleted, synced',
+      activityRates: 'id, [userId+activityName], userId, activityName, hourlyRate, updatedAt',
+      rateChangeLogs: 'id, userId, activityName, changedAt',
       syncQueue: '++id, table, recordId, timestamp, retryCount',
       profile: 'id',
     });
@@ -49,7 +79,7 @@ export function calculateAmount(hoursRounded: number, rate: number): number {
 // ---- Case CRUD ----
 
 export async function createCase(
-  data: Omit<Case, 'id' | 'createdAt' | 'updatedAt' | 'synced' | 'isDeleted'>
+  data: Omit<Case, 'id' | 'createdAt' | 'updatedAt' | 'synced' | 'isDeleted'> & { userId?: string }
 ): Promise<Case> {
   const now = new Date().toISOString();
   const newCase: Case = {
@@ -82,14 +112,26 @@ export async function getCase(id: string): Promise<Case | undefined> {
   return db.cases.get(id);
 }
 
-export async function getAllCases(): Promise<Case[]> {
-  const all = await db.cases.orderBy('createdAt').reverse().toArray();
-  return all.filter(c => !c.isDeleted);
+export async function getAllCases(userId?: string): Promise<Case[]> {
+  let rows: Case[];
+  if (userId) {
+    rows = await db.cases.where('userId').equals(userId).toArray();
+    rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  } else {
+    rows = await db.cases.orderBy('createdAt').reverse().toArray();
+  }
+  return rows.filter(c => !c.isDeleted);
 }
 
-export async function getOpenCases(): Promise<Case[]> {
-  const open = await db.cases.where('status').equals('Open').sortBy('respondentName');
-  return open.filter(c => !c.isDeleted);
+export async function getOpenCases(userId?: string): Promise<Case[]> {
+  let rows: Case[];
+  if (userId) {
+    rows = await db.cases.where('userId').equals(userId).and((c: any) => c.status === 'Open').toArray();
+  } else {
+    rows = await db.cases.where('status').equals('Open').toArray();
+  }
+  rows.sort((a, b) => a.respondentName.localeCompare(b.respondentName));
+  return rows.filter(c => !c.isDeleted);
 }
 
 export async function deleteCase(id: string): Promise<void> {
@@ -103,15 +145,17 @@ export async function deleteCase(id: string): Promise<void> {
 // ---- Time Entries ----
 
 export async function createTimeEntry(
-  data: Omit<TimeEntry, 'id' | 'billableHoursRounded' | 'amount' | 'billingMonth' | 'billingStatus'>
+  data: Omit<TimeEntry, 'id' | 'billableHoursRounded' | 'amount' | 'billingMonth' | 'billingStatus'> & { userId?: string }
 ): Promise<TimeEntry> {
   const rounded = roundToNearestTenth(data.billableHours);
   const billingMonth = getBillingMonth(data.date);
 
-  // snapshot the current rate from case
-  const caseRecord = await db.cases.get(data.caseId);
-  const rate = caseRecord?.hourlyRate ?? (data as any).hourlyRate ?? 0;
-
+  // Prefer passed activityRate or hourlyRate (for new feature), fallback to case or default
+  let rate = (data as any).activityRate ?? (data as any).hourlyRate ?? 0;
+  if (!rate) {
+    const caseRecord = await db.cases.get(data.caseId);
+    rate = caseRecord?.hourlyRate ?? DEFAULT_RATE;
+  }
   const amount = calculateAmount(rounded, rate);
 
   const entry: TimeEntry = {
@@ -120,8 +164,11 @@ export async function createTimeEntry(
     billableHoursRounded: rounded,
     hourlyRate: rate,
     amount,
+    activityRate: (data as any).activityRate ?? rate,
+    totalAmount: (data as any).totalAmount ?? amount,
     billingMonth,
     billingStatus: 'Pending',
+    isOpenCourt: data.activityType === 'Court' || (data as any).isOpenCourt,
     updatedAt: new Date().toISOString(),
     synced: false,
     isDeleted: false,
@@ -137,17 +184,19 @@ export async function updateTimeEntry(id: string, updates: Partial<TimeEntry>): 
 
   let newData = { ...existing, ...updates };
 
-  // Recompute if hours or date or rate changed
-  if (updates.billableHours !== undefined || updates.date !== undefined || updates.hourlyRate !== undefined) {
+  // Recompute rounded, amount if hours/date/rate changed. Use activityRate if present.
+  if (updates.billableHours !== undefined || updates.date !== undefined || updates.hourlyRate !== undefined || updates.activityRate !== undefined) {
     const rounded = roundToNearestTenth(newData.billableHours);
     const billingMonth = getBillingMonth(newData.date);
-    const caseRec = await db.cases.get(newData.caseId);
-    const rate = caseRec?.hourlyRate ?? newData.hourlyRate;
+    const rate = newData.activityRate ?? newData.hourlyRate ?? DEFAULT_RATE;
 
     newData.billableHoursRounded = rounded;
     newData.billingMonth = billingMonth;
     newData.hourlyRate = rate;
     newData.amount = calculateAmount(rounded, rate);
+    newData.activityRate = rate;
+    newData.totalAmount = calculateAmount(rounded, rate);
+    newData.isOpenCourt = newData.activityType === 'Court' || newData.isOpenCourt;
   }
 
   const updated: TimeEntry = {
@@ -165,27 +214,49 @@ export async function getTimeEntriesForCase(caseId: string): Promise<TimeEntry[]
   return rows.filter(e => !e.isDeleted);
 }
 
-export async function getAllTimeEntries(): Promise<TimeEntry[]> {
-  const all = await db.timeEntries.orderBy('date').reverse().toArray();
-  return all.filter(e => !e.isDeleted);
-}
-
-export async function getPendingTimeEntriesForMonth(billingMonth: string): Promise<TimeEntry[]> {
-  const rows = await db.timeEntries
-    .where('billingMonth')
-    .equals(billingMonth)
-    .and((e) => e.billingStatus === 'Pending')
-    .toArray();
+export async function getAllTimeEntries(userId?: string): Promise<TimeEntry[]> {
+  let rows: TimeEntry[];
+  if (userId) {
+    rows = await db.timeEntries.where('userId').equals(userId).toArray();
+    rows.sort((a, b) => b.date.localeCompare(a.date));
+  } else {
+    rows = await db.timeEntries.orderBy('date').reverse().toArray();
+  }
   return rows.filter(e => !e.isDeleted);
 }
 
-export async function getAllTimeForMonth(billingMonth: string): Promise<TimeEntry[]> {
-  const rows = await db.timeEntries.where('billingMonth').equals(billingMonth).toArray();
+export async function getPendingTimeEntriesForMonth(billingMonth: string, userId?: string): Promise<TimeEntry[]> {
+  let rows: TimeEntry[];
+  if (userId) {
+    rows = await db.timeEntries
+      .where('userId').equals(userId)
+      .and((e: any) => e.billingMonth === billingMonth && e.billingStatus === 'Pending')
+      .toArray();
+  } else {
+    rows = await db.timeEntries
+      .where('billingMonth')
+      .equals(billingMonth)
+      .and((e) => e.billingStatus === 'Pending')
+      .toArray();
+  }
   return rows.filter(e => !e.isDeleted);
 }
 
-export async function markTimeEntriesAsBilled(billingMonth: string): Promise<number> {
-  const pending = await getPendingTimeEntriesForMonth(billingMonth);
+export async function getAllTimeForMonth(billingMonth: string, userId?: string): Promise<TimeEntry[]> {
+  let rows: TimeEntry[];
+  if (userId) {
+    rows = await db.timeEntries
+      .where('userId').equals(userId)
+      .and((e: any) => e.billingMonth === billingMonth)
+      .toArray();
+  } else {
+    rows = await db.timeEntries.where('billingMonth').equals(billingMonth).toArray();
+  }
+  return rows.filter(e => !e.isDeleted);
+}
+
+export async function markTimeEntriesAsBilled(billingMonth: string, userId?: string): Promise<number> {
+  const pending = await getPendingTimeEntriesForMonth(billingMonth, userId);
   if (pending.length === 0) return 0;
 
   const ids = pending.map((e) => e.id);
@@ -200,7 +271,7 @@ export async function deleteTimeEntry(id: string): Promise<void> {
 
 // ---- Expenses ----
 
-export async function createExpense(data: Omit<Expense, 'id'>): Promise<Expense> {
+export async function createExpense(data: Omit<Expense, 'id'> & { userId?: string }): Promise<Expense> {
   const expense: Expense = {
     ...data,
     id: crypto.randomUUID(),
@@ -230,14 +301,24 @@ export async function getExpensesForCase(caseId: string): Promise<Expense[]> {
   return rows.filter(e => !e.isDeleted);
 }
 
-export async function getAllExpenses(): Promise<Expense[]> {
-  const all = await db.expenses.orderBy('date').reverse().toArray();
-  return all.filter(e => !e.isDeleted);
+export async function getAllExpenses(userId?: string): Promise<Expense[]> {
+  let rows: Expense[];
+  if (userId) {
+    rows = await db.expenses.where('userId').equals(userId).toArray();
+    rows.sort((a, b) => b.date.localeCompare(a.date));
+  } else {
+    rows = await db.expenses.orderBy('date').reverse().toArray();
+  }
+  return rows.filter(e => !e.isDeleted);
 }
 
-export async function getExpensesForMonth(billingMonth: string): Promise<Expense[]> {
-  // Filter client side since date based
-  const all = await db.expenses.toArray();
+export async function getExpensesForMonth(billingMonth: string, userId?: string): Promise<Expense[]> {
+  let all: Expense[];
+  if (userId) {
+    all = await db.expenses.where('userId').equals(userId).toArray();
+  } else {
+    all = await db.expenses.toArray();
+  }
   return all.filter((e) => e.date.startsWith(billingMonth) && !e.isDeleted);
 }
 
@@ -282,6 +363,97 @@ export async function updateUserProfile(updates: Partial<Omit<UserProfile, 'id'>
   return updated;
 }
 
+// ---- Activity Rates (per user, per activity) ----
+
+const DEFAULT_RATE = DEFAULT_HOURLY_RATE;
+
+export async function getActivityRates(userId?: string): Promise<ActivityRate[]> {
+  let rows: ActivityRate[];
+  if (userId) {
+    rows = await db.activityRates.where('userId').equals(userId).toArray();
+  } else {
+    rows = await db.activityRates.toArray();
+  }
+  return rows;
+}
+
+export async function getActivityRate(activityName: string, userId?: string): Promise<number> {
+  const rates = await getActivityRates(userId);
+  const found = rates.find(r => r.activityName === activityName);
+  if (found) return found.hourlyRate;
+  // default
+  return DEFAULT_RATE;
+}
+
+export async function setActivityRate(activityName: string, hourlyRate: number, userId?: string): Promise<ActivityRate> {
+  const now = new Date().toISOString();
+  // find existing
+  const existingRates = await getActivityRates(userId);
+  const existing = existingRates.find(r => r.activityName === activityName && (!userId || r.userId === userId || !r.userId));
+  let rate: ActivityRate;
+  let oldRate = DEFAULT_RATE;
+  if (existing) {
+    oldRate = existing.hourlyRate;
+    rate = {
+      ...existing,
+      hourlyRate,
+      updatedAt: now,
+    };
+    if (userId) rate.userId = userId;
+    await db.activityRates.put(rate);
+  } else {
+    rate = {
+      id: crypto.randomUUID(),
+      userId,
+      activityName,
+      hourlyRate,
+      updatedAt: now,
+    };
+    await db.activityRates.add(rate);
+  }
+  // Log the change only if rate actually changed
+  if (oldRate !== hourlyRate) {
+    await logRateChange(userId, activityName, oldRate, hourlyRate);
+  }
+  return rate;
+}
+
+export async function logRateChange(userId: string | undefined, activityName: string, oldRate: number, newRate: number): Promise<RateChangeLog> {
+  const now = new Date().toISOString();
+  const log: RateChangeLog = {
+    id: crypto.randomUUID(),
+    userId,
+    activityName,
+    oldRate,
+    newRate,
+    changedAt: now,
+  };
+  await db.rateChangeLogs.add(log);
+  return log;
+}
+
+export async function getRateChangeLogs(userId?: string, limit = 20): Promise<RateChangeLog[]> {
+  let logs: RateChangeLog[];
+  if (userId) {
+    logs = await db.rateChangeLogs.where('userId').equals(userId).toArray();
+  } else {
+    logs = await db.rateChangeLogs.toArray();
+  }
+  logs.sort((a, b) => b.changedAt.localeCompare(a.changedAt));
+  return logs.slice(0, limit);
+}
+
+export async function initializeDefaultActivityRates(userId?: string) {
+  const { ACTIVITY_TYPES } = await import('@/lib/constants');
+  const existing = await getActivityRates(userId);
+  const existingNames = new Set(existing.map(r => r.activityName));
+  for (const name of ACTIVITY_TYPES) {
+    if (!existingNames.has(name)) {
+      await setActivityRate(name, DEFAULT_RATE, userId);
+    }
+  }
+}
+
 // ---- Aggregates & Billing ----
 
 export async function getMonthlySummary(billingMonth: string): Promise<{
@@ -296,7 +468,7 @@ export async function getMonthlySummary(billingMonth: string): Promise<{
   const expenses = await getExpensesForMonth(billingMonth);
 
   const totalHoursRounded = timeEntries.reduce((sum, e) => sum + e.billableHoursRounded, 0);
-  const totalTimeAmount = timeEntries.reduce((sum, e) => sum + e.amount, 0);
+  const totalTimeAmount = timeEntries.reduce((sum, e) => sum + (e.totalAmount ?? e.amount), 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
 
   return {
@@ -309,11 +481,22 @@ export async function getMonthlySummary(billingMonth: string): Promise<{
   };
 }
 
-export async function buildMonthlyBillingSummary(billingMonth: string): Promise<any> {
+export async function buildMonthlyBillingSummary(billingMonth: string, userId?: string): Promise<any> {
   // Returns structured data for PDF + UI preview. No humor here.
-  const cases = await getAllCases();
-  const timeEntries = await getAllTimeForMonth(billingMonth);
-  const expenses = await getExpensesForMonth(billingMonth);
+  // Data model enhancements for official templates (see generateInvoice.ts analysis):
+  // - Captures per-case: respondentName, caseNumber, assignmentType, firstTimeBilling, appointmentDate, appointingJudge, natureOfCase
+  // - Per time entry (via Activity Rates integration): activityType, billableHoursRounded, activityRate, totalAmount, description, isOpenCourt (for court/out totals)
+  // - Expenses per caseId only if present.
+  // - Chronological sort and respondent grouping done here.
+  // - Integrates Activity Rates snapshots so no manual rate editing needed in exports.
+  // Alaska rules compliance (ADM-121, AS 13.26, PG assignment forms):
+  // - Assignment types, First Time Billing flag, chronological itemized time/expenses by respondent/case.
+  // - Derived open/out court time for required totals.
+  // - Expenses only per cases that have them.
+  // - Activity rates snapshots for per-service Rate/Amount in templates.
+  const cases = await getAllCases(userId);
+  const timeEntries = await getAllTimeForMonth(billingMonth, userId);
+  const expenses = await getExpensesForMonth(billingMonth, userId);
 
   const caseMap = new Map<string, any>();
 
@@ -325,12 +508,17 @@ export async function buildMonthlyBillingSummary(billingMonth: string): Promise<
       assignmentType: c.assignmentType,
       hourlyRate: c.hourlyRate,
       firstTimeBilling: c.firstTimeBilling,
+      appointmentDate: c.appointmentDate,
+      appointingJudge: c.appointingJudge,
+      natureOfCase: c.natureOfCase,
       timeEntries: [],
       expenses: [],
       timeTotal: 0,
       timeAmount: 0,
       expensesTotal: 0,
       grandTotal: 0,
+      openCourtTime: 0,
+      outOfCourtTime: 0,
     });
   }
 
@@ -339,7 +527,24 @@ export async function buildMonthlyBillingSummary(billingMonth: string): Promise<
     if (bucket) {
       bucket.timeEntries.push(te);
       bucket.timeTotal += te.billableHoursRounded;
-      bucket.timeAmount += te.amount;
+      bucket.timeAmount += te.totalAmount ?? te.amount;
+      // Derive court time for official ADM-121 style forms (use 'Court' activity or explicit flag)
+      const isCourt = te.isOpenCourt || te.activityType === 'Court';
+      if (isCourt) {
+        bucket.openCourtTime += te.billableHoursRounded;
+      } else {
+        bucket.outOfCourtTime += te.billableHoursRounded;
+      }
+    }
+  }
+
+  // Ensure chronological order per regs
+  for (const bucket of caseMap.values()) {
+    if (bucket.timeEntries) {
+      bucket.timeEntries.sort((a: any, b: any) => a.date.localeCompare(b.date));
+    }
+    if (bucket.expenses) {
+      bucket.expenses.sort((a: any, b: any) => a.date.localeCompare(b.date));
     }
   }
 
@@ -359,12 +564,16 @@ export async function buildMonthlyBillingSummary(billingMonth: string): Promise<
       timeAmount: Math.round(c.timeAmount * 100) / 100,
       expensesTotal: Math.round(c.expensesTotal * 100) / 100,
       grandTotal: Math.round((c.timeAmount + c.expensesTotal) * 100) / 100,
+      openCourtTime: Math.round(c.openCourtTime * 10) / 10,
+      outOfCourtTime: Math.round(c.outOfCourtTime * 10) / 10,
     }))
     .sort((a, b) => a.respondentName.localeCompare(b.respondentName));
 
   const overallTimeHours = caseSummaries.reduce((s, c) => s + c.timeTotal, 0);
   const overallTimeAmount = caseSummaries.reduce((s, c) => s + c.timeAmount, 0);
   const overallExpenses = caseSummaries.reduce((s, c) => s + c.expensesTotal, 0);
+  const overallOpenCourt = caseSummaries.reduce((s, c) => s + (c.openCourtTime || 0), 0);
+  const overallOutOfCourt = caseSummaries.reduce((s, c) => s + (c.outOfCourtTime || 0), 0);
 
   return {
     billingMonth,
@@ -374,23 +583,40 @@ export async function buildMonthlyBillingSummary(billingMonth: string): Promise<
     overallExpenses: Math.round(overallExpenses * 100) / 100,
     grandTotal: Math.round((overallTimeAmount + overallExpenses) * 100) / 100,
     pendingCount: timeEntries.filter((t) => t.billingStatus === 'Pending').length,
+    overallOpenCourtTime: Math.round(overallOpenCourt * 10) / 10,
+    overallOutOfCourtTime: Math.round(overallOutOfCourt * 10) / 10,
   };
 }
 
 // ---- Sync Layer Helpers (aligned to new schema) ----
 
-export async function getUnsyncedCases(): Promise<Case[]> {
-  const all = await db.cases.toArray();
+export async function getUnsyncedCases(userId?: string): Promise<Case[]> {
+  let all: Case[];
+  if (userId) {
+    all = await db.cases.where('userId').equals(userId).toArray();
+  } else {
+    all = await db.cases.toArray();
+  }
   return all.filter((c) => c.synced !== true && !c.isDeleted);
 }
 
-export async function getUnsyncedTimeEntries(): Promise<TimeEntry[]> {
-  const all = await db.timeEntries.toArray();
+export async function getUnsyncedTimeEntries(userId?: string): Promise<TimeEntry[]> {
+  let all: TimeEntry[];
+  if (userId) {
+    all = await db.timeEntries.where('userId').equals(userId).toArray();
+  } else {
+    all = await db.timeEntries.toArray();
+  }
   return all.filter((e) => e.synced !== true && !e.isDeleted);
 }
 
-export async function getUnsyncedExpenses(): Promise<Expense[]> {
-  const all = await db.expenses.toArray();
+export async function getUnsyncedExpenses(userId?: string): Promise<Expense[]> {
+  let all: Expense[];
+  if (userId) {
+    all = await db.expenses.where('userId').equals(userId).toArray();
+  } else {
+    all = await db.expenses.toArray();
+  }
   return all.filter((e) => e.synced !== true && !e.isDeleted);
 }
 
@@ -417,11 +643,11 @@ export async function queueChange(
   await db.syncQueue.add(item);
 }
 
-export async function getAllUnsyncedForPush() {
+export async function getAllUnsyncedForPush(userId?: string) {
   const [cases, timeEntries, expenses] = await Promise.all([
-    getUnsyncedCases(),
-    getUnsyncedTimeEntries(),
-    getUnsyncedExpenses(),
+    getUnsyncedCases(userId),
+    getUnsyncedTimeEntries(userId),
+    getUnsyncedExpenses(userId),
   ]);
   return { cases, timeEntries, expenses };
 }

@@ -2,6 +2,35 @@
  * CaseLog Professional PDF Generation
  * Produces clean, court-ready billing documents. NO HUMOR IN OUTPUT.
  * Uses jsPDF + jspdf-autotable
+ *
+ * ANALYSIS OF OFFICIAL TEMPLATES (ADM-121 and similar for Court Visitor fees):
+ * Required data fields identified:
+ * - Case: respondentName (as "Name of Person Represented"), caseNumber, assignmentType, firstTimeBilling, appointmentDate, appointingJudge, natureOfCase (for "Describe Nature...")
+ * - Time: date, activityType (detailed instead of just in/out court), billableHoursRounded (tenths), activityRate (or hourlyRate), totalAmount, description (brief service desc)
+ * - Expense: date, expenseType (category), amount, description
+ * - Profile: name, courtVisitorId, phone, email, organization, invoiceNotes
+ * - Aggregates: timeTotal (can split open/out), timeAmount, expensesTotal, grandTotal
+ * - Other: billingMonth, isFirstTime, prior billing flags (not yet captured - gap noted)
+ *
+ * Alaska regulations insights (from ADM-121 billing form for visitor fees in conservatorship/guardianship cases, PG forms for Notice of Court Visitor Assignment, AS 13.26, court rules):
+ * - Assignment types: Initial, Review, Three-Year Review, Medication (exact match to app ASSIGNMENT_TYPES).
+ * - Itemized time: chronological by date, hours and tenths of hours, brief description of service.
+ * - Separate a. Total Time Spent In Open Court b. Total Time Spent Out Of Court c. Itemized Expenses.
+ * - Case info: Case Name/No, Respondent (person represented), Assignment, Date of Appointment, Appointing Judge, Nature of Case.
+ * - Visitor info: Name, ID, contact, organization.
+ * - Expenses: itemized with category (e.g. Parking, Mileage, Postage, Copies, Certified Mail, Other), date, amount, desc; only for cases with them.
+ * - First Time Billing flag (app has it).
+ * - Prior billing disclosure (has compensation previously applied/received? previously billed ACS? services concluded or interim? - gap for future).
+ * - Group by respondent/case, chrono order.
+ * - Rates per activity now supported; court system pays visitor fees.
+ * - App's custom PDF "COURT VISITOR BILLING STATEMENT" + package prepares the data fields for clean population (no manual Excel).
+ * - Derived court times using 'Court' activity + isOpenCourt flag to match open/out requirements.
+ *
+ * GAPS NOTED (for future incremental work):
+ * - No explicit "prior billing received" or "services concluded/interim" flags yet.
+ * - Court time separation is derived (not explicit per-entry UI yet); open/out totals computed in build.
+ * - Full ADM-121 fields like "Law Firm", exact "Total Time In Open Court" separate input not in basic form (use activity 'Court').
+ * - Expenses must be only shown for cases that have them (enforced in build/PDF).
  */
 
 import jsPDF from 'jspdf';
@@ -21,13 +50,15 @@ interface GenerateOptions {
     timeAmount: number;
     expensesTotal: number;
     grandTotal: number;
+    openCourtTime?: number;
+    outOfCourtTime?: number;
   };
   isFirstTime?: boolean;
 }
 
 export function generateCaseInvoicePDF(opts: GenerateOptions): jsPDF {
   const { billingMonth, profile, caseData, isFirstTime } = opts;
-  const { caseRecord, timeEntries, expenses, timeTotal, timeAmount, expensesTotal, grandTotal } = caseData;
+  const { caseRecord, timeEntries, expenses, timeTotal, timeAmount, expensesTotal, grandTotal, openCourtTime = 0, outOfCourtTime = 0 } = caseData;
 
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -113,6 +144,14 @@ export function generateCaseInvoicePDF(opts: GenerateOptions): jsPDF {
   rightY += 5;
   doc.text(`Assignment: ${caseRecord.assignmentType}`, rightX, rightY);
   rightY += 5;
+  if (caseRecord.appointmentDate) {
+    doc.text(`Appt Date: ${format(new Date(caseRecord.appointmentDate), 'MM/dd/yyyy')}`, rightX, rightY);
+    rightY += 5;
+  }
+  if (caseRecord.appointingJudge) {
+    doc.text(`Judge: ${caseRecord.appointingJudge}`, rightX, rightY);
+    rightY += 5;
+  }
   doc.text(`Rate: ${formatCurrency(caseRecord.hourlyRate)}/hr`, rightX, rightY);
 
   // Divider
@@ -130,6 +169,15 @@ export function generateCaseInvoicePDF(opts: GenerateOptions): jsPDF {
     y += 8;
   }
 
+  // Court time totals for official ADM-121 style (In Open Court / Out of Court)
+  if (openCourtTime > 0 || outOfCourtTime > 0) {
+    doc.setFontSize(9);
+    doc.text(`Total Time In Open Court: ${openCourtTime.toFixed(1)} hrs`, margin, y);
+    y += 5;
+    doc.text(`Total Time Out Of Court: ${outOfCourtTime.toFixed(1)} hrs`, margin, y);
+    y += 8;
+  }
+
   // TIME ENTRIES TABLE
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
@@ -143,8 +191,8 @@ export function generateCaseInvoicePDF(opts: GenerateOptions): jsPDF {
         format(new Date(e.date), 'MM/dd/yyyy'),
         e.activityType,
         e.billableHoursRounded.toFixed(1),
-        formatCurrency(e.hourlyRate),
-        formatCurrency(e.amount),
+        formatCurrency(e.activityRate ?? e.hourlyRate),
+        formatCurrency(e.totalAmount ?? e.amount),
         e.description || '',
       ]);
 
@@ -172,6 +220,12 @@ export function generateCaseInvoicePDF(opts: GenerateOptions): jsPDF {
   }
 
   // EXPENSES TABLE
+  // Expense mapping per Alaska requirements (ADM-121):
+  // - Attached via caseId in data model (only cases with expenses included in buildMonthlyBillingSummary).
+  // - Shown per-case only if expenses.length > 0 (no empty sections).
+  // - Uses expenseType as category, date, amount, description.
+  // - Totals aggregated separately from time.
+  // - Categories: Parking, Certified Mail, Copies, Postage, Mileage, Other (from constants, with mileage note).
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.text('EXPENSES', margin, y);
@@ -306,6 +360,12 @@ export function generateFullBillingPackagePDF(
   y += 6;
   doc.text(`Total Billable Hours: ${summary.overallTimeHours.toFixed(1)}`, margin, y);
   y += 6;
+  if (summary.overallOpenCourtTime || summary.overallOutOfCourtTime) {
+    doc.text(`  In Open Court: ${ (summary.overallOpenCourtTime || 0).toFixed(1)}`, margin, y);
+    y += 5;
+    doc.text(`  Out Of Court: ${ (summary.overallOutOfCourtTime || 0).toFixed(1)}`, margin, y);
+    y += 5;
+  }
   doc.text(`Total Time Fees: ${formatCurrency(summary.overallTimeAmount)}`, margin, y);
   y += 6;
   doc.text(`Total Expenses: ${formatCurrency(summary.overallExpenses)}`, margin, y);
@@ -331,6 +391,9 @@ export function generateFullBillingPackagePDF(
       status: 'Open',
       hourlyRate: caseSummary.hourlyRate,
       firstTimeBilling: caseSummary.firstTimeBilling,
+      appointmentDate: caseSummary.appointmentDate,
+      appointingJudge: caseSummary.appointingJudge,
+      natureOfCase: caseSummary.natureOfCase,
       createdAt: '',
       updatedAt: '',
       synced: true,
@@ -349,6 +412,8 @@ export function generateFullBillingPackagePDF(
         timeAmount: caseSummary.timeAmount,
         expensesTotal: caseSummary.expensesTotal,
         grandTotal: caseSummary.grandTotal,
+        openCourtTime: caseSummary.openCourtTime,
+        outOfCourtTime: caseSummary.outOfCourtTime,
       },
     });
 
@@ -379,7 +444,7 @@ export function generateFullBillingPackagePDF(
         format(new Date(e.date), 'MM/dd'),
         e.activityType,
         e.billableHoursRounded.toFixed(1),
-        formatCurrency(e.amount),
+        formatCurrency(e.totalAmount ?? e.amount),
       ]);
 
       autoTable(doc, {
@@ -396,7 +461,7 @@ export function generateFullBillingPackagePDF(
       caseY = (doc as any).lastAutoTable.finalY + 4;
     }
 
-    // Expenses
+    // Expenses (only if present for this case/respondent - per requirements)
     if (caseSummary.expenses.length) {
       const expRows = caseSummary.expenses.map((e: Expense) => [
         format(new Date(e.date), 'MM/dd'),
