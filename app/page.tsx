@@ -7,7 +7,7 @@ import { announce } from '@/lib/utils';
 import { AppHeader, BottomTabBar } from '@/components/AppHeader';
 import NewCaseForm from '@/components/NewCaseForm';
 import OpenCasesSection from '@/components/OpenCasesSection';
-import ProfileForm from '@/components/ProfileForm';
+import ProfileModal from '@/app/components/ProfileModal';
 import ProfileOverview from '@/components/ProfileOverview';
 import LogTimeModal from '@/app/components/LogTimeModal';
 import NewCaseModal from '@/app/components/NewCaseModal';
@@ -382,7 +382,6 @@ export default function CaseLogApp() {
     addTimeEntry,
     editCase,
     pendingChangesCount,
-    saveProfile,
     clearLocalData,
     user,
     isAuthenticated,
@@ -419,7 +418,7 @@ export default function CaseLogApp() {
     }
 
     if (label === 'Profile') {
-      setProfileFormOpen(true);
+      setProfileModalOpen(true);
       return;
     }
 
@@ -609,7 +608,7 @@ export default function CaseLogApp() {
       announce('Loading from your device…', false);
     }
   }, [isLoading]);
-  const [profileFormOpen, setProfileFormOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [logTimeOpen, setLogTimeOpen] = useState(false);
   const [logTimeCaseId, setLogTimeCaseId] = useState<string | undefined>();
   const [newCaseModalOpen, setNewCaseModalOpen] = useState(false);
@@ -715,19 +714,6 @@ export default function CaseLogApp() {
         hourlyRate: 0,
       } as any);
     }
-  };
-
-  // Handler for ProfileForm (parent handles store persistence)
-  const handleProfileSave = async (data: any) => {
-    const { name, email, phone } = data;
-
-    await saveProfile({ 
-      name: name?.trim() || '', 
-      email: email?.trim() || '', 
-      phone: phone?.trim() || '' 
-    });
-
-    toast.success('Profile saved.');
   };
 
   const handleDeleteTime = async (t: TimeEntry) => {
@@ -1483,7 +1469,7 @@ export default function CaseLogApp() {
 
     return (
       <div className="max-w-md mx-auto px-4 py-6 space-y-6 text-sm overflow-y-auto">
-        <ProfileOverview onEdit={() => setProfileFormOpen(true)} />
+        <ProfileOverview onEdit={() => setProfileModalOpen(true)} />
 
         {/* SETTINGS */}
         <div>
@@ -1608,12 +1594,10 @@ export default function CaseLogApp() {
         existing={editingExpense}
       />
 
-      {profileFormOpen && (
-        <ProfileForm 
-          onSave={handleProfileSave} 
-          onClose={() => setProfileFormOpen(false)} 
-        />
-      )}
+      <ProfileModal
+        isOpen={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+      />
 
       <LogTimeModal
         isOpen={logTimeOpen}
