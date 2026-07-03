@@ -42,6 +42,7 @@ import {
   Settings,
   ChevronRight,
   FileText,
+  Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
@@ -1136,103 +1137,159 @@ export default function CaseLogApp() {
     );
   };
 
+  const scrollInputIntoView = (e: React.FocusEvent<HTMLInputElement>) => {
+    // Delay to allow keyboard to animate in on iOS Safari
+    setTimeout(() => {
+      e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+  };
+
+  const clearAuthError = () => {
+    if (authError) setAuthError('');
+  };
+
   const LoginScreen = () => (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-50 dark:bg-zinc-950 px-4">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="text-center">
-          <div className="mx-auto h-12 w-12 rounded-xl bg-foreground text-background flex items-center justify-center mb-4">
-            <FileText className="h-6 w-6" />
-          </div>
-          <h1 className="text-3xl font-semibold tracking-tighter">CaseLog</h1>
-          <p className="text-muted-foreground mt-1">Court Visitor Billing</p>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-center">
-              {authView === 'login' && 'Log in'}
-              {authView === 'signup' && 'Sign up'}
-              {authView === 'reset' && 'Reset Password'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={authView === 'login' ? handleSignIn : authView === 'signup' ? handleSignUp : handleResetPassword} className="space-y-4">
-              <div>
-                <Label>Email</Label>
-                <Input
-                  type="email"
-                  value={authEmail}
-                  onChange={(e) => setAuthEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  className="mt-1.5"
-                  required
-                />
+    <div 
+      className="h-dvh flex flex-col bg-zinc-50 dark:bg-zinc-950 overflow-hidden"
+      style={{ height: '100dvh' }}
+    >
+      <div className="flex-1 overflow-y-auto">
+        <div 
+          className="min-h-full flex flex-col justify-center px-4 py-8"
+          style={{
+            paddingTop: 'max(2rem, env(safe-area-inset-top))',
+            paddingBottom: 'max(2rem, env(safe-area-inset-bottom))'
+          }}
+        >
+          <div className="w-full max-w-sm mx-auto space-y-6">
+            <div className="text-center">
+              <div className="mx-auto h-12 w-12 rounded-xl bg-foreground text-background flex items-center justify-center mb-4">
+                <FileText className="h-6 w-6" />
               </div>
+              <h1 className="text-3xl font-semibold tracking-tighter">CaseLog</h1>
+              <p className="text-muted-foreground mt-1">Court Visitor Billing</p>
+            </div>
 
-              {(authView === 'login' || authView === 'signup') && (
-                <div>
-                  <Label>Password</Label>
-                  <Input
-                    type="password"
-                    value={authPassword}
-                    onChange={(e) => setAuthPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="mt-1.5"
-                    required
-                  />
-                </div>
-              )}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-center">
+                  {authView === 'login' && 'Log in'}
+                  {authView === 'signup' && 'Sign up'}
+                  {authView === 'reset' && 'Reset Password'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form 
+                  onSubmit={authView === 'login' ? handleSignIn : authView === 'signup' ? handleSignUp : handleResetPassword} 
+                  className="space-y-4"
+                >
+                  <div>
+                    <Label>Email</Label>
+                    <Input
+                      type="email"
+                      value={authEmail}
+                      onChange={(e) => { setAuthEmail(e.target.value); clearAuthError(); }}
+                      onFocus={scrollInputIntoView}
+                      placeholder="you@example.com"
+                      className="mt-1.5"
+                      required
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      autoComplete="email"
+                    />
+                  </div>
 
-              {authView === 'signup' && (
-                <div>
-                  <Label>Optional UserID / Name</Label>
-                  <Input
-                    value={authUserId}
-                    onChange={(e) => setAuthUserId(e.target.value)}
-                    placeholder="e.g. Visitor-123"
-                    className="mt-1.5"
-                  />
-                </div>
-              )}
+                  {(authView === 'login' || authView === 'signup') && (
+                    <div>
+                      <Label>Password</Label>
+                      <Input
+                        type="password"
+                        value={authPassword}
+                        onChange={(e) => { setAuthPassword(e.target.value); clearAuthError(); }}
+                        onFocus={scrollInputIntoView}
+                        placeholder="••••••••"
+                        className="mt-1.5"
+                        required
+                        autoComplete={authView === 'signup' ? 'new-password' : 'current-password'}
+                      />
+                    </div>
+                  )}
 
-              {authError && (
-                <p className="text-sm text-destructive">{authError}</p>
-              )}
+                  {authView === 'signup' && (
+                    <div>
+                      <Label>Optional UserID / Name</Label>
+                      <Input
+                        value={authUserId}
+                        onChange={(e) => { setAuthUserId(e.target.value); clearAuthError(); }}
+                        onFocus={scrollInputIntoView}
+                        placeholder="e.g. Visitor-123"
+                        className="mt-1.5"
+                        autoCapitalize="none"
+                      />
+                    </div>
+                  )}
 
-              <Button type="submit" className="w-full" disabled={authLoading}>
-                {authLoading ? 'Loading...' : 
-                  authView === 'login' ? 'Log In' : 
-                  authView === 'signup' ? 'Sign Up' : 'Send Reset Link'}
-              </Button>
-            </form>
-          </CardContent>
-          <CardFooter className="flex flex-col gap-2 text-sm">
-            {authView === 'login' && (
-              <>
-                <button onClick={() => { setAuthView('signup'); setAuthError(''); }} className="text-primary hover:underline">
-                  Don't have an account? Sign up
-                </button>
-                <button onClick={() => { setAuthView('reset'); setAuthError(''); }} className="text-muted-foreground hover:underline">
-                  Forgot password?
-                </button>
-              </>
-            )}
-            {(authView === 'signup' || authView === 'reset') && (
-              <button onClick={() => { setAuthView('login'); setAuthError(''); }} className="text-primary hover:underline">
-                Back to login
-              </button>
-            )}
-            {authView === 'reset' && (
-              <p className="text-xs text-muted-foreground text-center pt-2">
-                Check your email for the reset link.
-              </p>
-            )}
-          </CardFooter>
-        </Card>
+                  {authError && (
+                    <p className="text-sm text-destructive bg-destructive/10 p-2 rounded">{authError}</p>
+                  )}
 
-        <p className="text-xs text-center text-muted-foreground">
-          {isSupabaseConfigured ? 'Secured with Supabase Auth' : 'Supabase not configured (demo mode)'}
-        </p>
+                  <Button 
+                    type="submit" 
+                    className="w-full" 
+                    disabled={authLoading}
+                    aria-busy={authLoading}
+                  >
+                    {authLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {authView === 'login' ? 'Logging in...' : 
+                         authView === 'signup' ? 'Creating account...' : 'Sending link...'}
+                      </>
+                    ) : (
+                      authView === 'login' ? 'Log In' : 
+                      authView === 'signup' ? 'Sign Up' : 'Send Reset Link'
+                    )}
+                  </Button>
+                </form>
+              </CardContent>
+              <CardFooter className="flex flex-col gap-2 text-sm">
+                {authView === 'login' && (
+                  <>
+                    <button 
+                      onClick={() => { setAuthView('signup'); setAuthError(''); }} 
+                      className="text-primary hover:underline active:opacity-70"
+                    >
+                      Don't have an account? Sign up
+                    </button>
+                    <button 
+                      onClick={() => { setAuthView('reset'); setAuthError(''); }} 
+                      className="text-muted-foreground hover:underline active:opacity-70"
+                    >
+                      Forgot password?
+                    </button>
+                  </>
+                )}
+                {(authView === 'signup' || authView === 'reset') && (
+                  <button 
+                    onClick={() => { setAuthView('login'); setAuthError(''); }} 
+                    className="text-primary hover:underline active:opacity-70"
+                  >
+                    Back to login
+                  </button>
+                )}
+                {authView === 'reset' && (
+                  <p className="text-xs text-muted-foreground text-center pt-2">
+                    Check your email for the reset link.
+                  </p>
+                )}
+              </CardFooter>
+            </Card>
+
+            <p className="text-xs text-center text-muted-foreground">
+              {isSupabaseConfigured ? 'Secured with Supabase Auth' : 'Supabase not configured (demo mode)'}
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1242,7 +1299,7 @@ export default function CaseLogApp() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
+    <div className="min-h-dvh flex flex-col bg-zinc-50 dark:bg-zinc-950" style={{ minHeight: '100dvh' }}>
       <AppHeader
         onOpenSettings={() => setSettingsOpen(true)}
       />
