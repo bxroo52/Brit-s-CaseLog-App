@@ -1622,6 +1622,7 @@ export default function CaseLogApp() {
 
       <LogTimeModal
         isOpen={logTimeOpen}
+        defaultCaseId={logTimeCaseId}
         onClose={() => {
           setLogTimeOpen(false);
           setLogTimeCaseId(undefined);

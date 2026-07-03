@@ -1,36 +1,54 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useAppStore } from '@/stores/useAppStore';
 
-export default function LogTimeModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const [cases, setCases] = useState<any[]>([]);
+export default function LogTimeModal({ isOpen, onClose, defaultCaseId }: { isOpen: boolean; onClose: () => void; defaultCaseId?: string }) {
   const [selectedCase, setSelectedCase] = useState('');
   const [selectedActivity, setSelectedActivity] = useState('Contact');
   const [hours, setHours] = useState('1');
+  const [description, setDescription] = useState('');
+
+  const { cases: allCases, addTimeEntry } = useAppStore();
+  const openCases = allCases.filter((c: any) => c.status === 'Open');
 
   useEffect(() => {
-    if (!isOpen) return;
-
-    async function loadCases() {
-      if (!supabase) {
-        setCases([]);
-        return;
-      }
-      const { data } = await supabase
-        .from('cases')
-        .select('id, case_number, title')
-        .order('created_at', { ascending: false });
-      setCases(data || []);
+    if (isOpen && defaultCaseId) {
+      setSelectedCase(defaultCaseId);
     }
-    loadCases();
-  }, [isOpen]);
+  }, [isOpen, defaultCaseId]);
 
   const handleLog = async () => {
-    console.log('Logging time for case:', selectedCase);
-    // TODO: save to time_entries
-    alert('Time logged!');
-    onClose();
+    if (!selectedCase) {
+      alert('Please select a case');
+      return;
+    }
+    const h = parseFloat(hours);
+    if (isNaN(h) || h <= 0) {
+      alert('Please enter valid billable hours');
+      return;
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    try {
+      await addTimeEntry({
+        caseId: selectedCase,
+        date: today,
+        activityType: selectedActivity,
+        billableHours: h,
+        description: description.trim(),
+      });
+      alert('Time logged!');
+      onClose();
+      // reset for next time
+      setSelectedCase('');
+      setHours('1');
+      setDescription('');
+    } catch (e) {
+      console.error(e);
+      alert('Failed to log time');
+    }
   };
 
   if (!isOpen) return null;
@@ -49,9 +67,9 @@ export default function LogTimeModal({ isOpen, onClose }: { isOpen: boolean; onC
               className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 text-lg"
             >
               <option value="">Select a case...</option>
-              {cases.map(c => (
+              {openCases.map((c: any) => (
                 <option key={c.id} value={c.id}>
-                  {c.title} — {c.case_number}
+                  {c.respondentLastName}, {c.respondentFirstName} — {c.caseNumber}
                 </option>
               ))}
             </select>
@@ -78,6 +96,17 @@ export default function LogTimeModal({ isOpen, onClose }: { isOpen: boolean; onC
               value={hours}
               onChange={(e) => setHours(e.target.value)}
               className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-6 text-5xl text-center"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-zinc-400 mb-2">Description / Notes</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Add a note about this time entry…"
+              rows={3}
+              className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 text-sm"
             />
           </div>
         </div>

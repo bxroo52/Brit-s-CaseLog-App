@@ -106,7 +106,7 @@ export default function LogTimeForm({ cases, onSubmit, onCancel, defaultCaseId }
           {/* Description */}
           <div>
             <label className="block text-sm font-medium text-gray-400 mb-1.5">Description</label>
-            <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="What happened? Be specific for the invoice monster." rows={4} className="w-full bg-[#2C2C2E] border border-[#3A3A3C] rounded-2xl px-4 py-3" />
+            <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Add a note about this time entry…" rows={4} className="w-full bg-[#2C2C2E] border border-[#3A3A3C] rounded-2xl px-4 py-3" />
           </div>
 
           <div className="pt-4 space-y-3">
