@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useAppStore, initializeAppData } from '@/stores/useAppStore';
 import { announce } from '@/lib/utils';
 import { AppHeader, BottomTabBar } from '@/components/AppHeader';
@@ -55,6 +55,256 @@ import { Case, TimeEntry, Expense, UserProfile } from '@/types';
 
 type View = 'dashboard' | 'cases' | 'time' | 'expenses' | 'billing' | 'account';
 
+interface LoginScreenProps {
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, userId?: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  isSupabaseConfigured: boolean;
+}
+
+const LoginScreen: React.FC<LoginScreenProps> = ({ signIn, signUp, resetPassword, isSupabaseConfigured }) => {
+  const [authView, setAuthView] = useState<'login' | 'signup' | 'reset'>('login');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authUserId, setAuthUserId] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+
+  const emailInputRef = useRef<HTMLInputElement>(null);
+
+  const clearAuthError = () => {
+    if (authError) setAuthError('');
+  };
+
+  const scrollInputIntoView = (e: React.FocusEvent<HTMLInputElement>) => {
+    setTimeout(() => {
+      e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+  };
+
+  // Auto-focus the email field when the view changes to login or signup
+  useEffect(() => {
+    if (authView === 'login' || authView === 'signup') {
+      const timer = setTimeout(() => {
+        emailInputRef.current?.focus();
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [authView]);
+
+  const handleSignIn = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!authEmail || !authPassword) {
+      setAuthError('Email and password required.');
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      await signIn(authEmail, authPassword);
+    } catch (e: any) {
+      setAuthError(e.message || 'Login failed.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleSignUp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!authEmail || !authPassword) {
+      setAuthError('Email and password required.');
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      await signUp(authEmail, authPassword, authUserId || undefined);
+      toast.success('Check your email to confirm signup, then sign in.');
+      setAuthView('login');
+      setAuthEmail('');
+      setAuthPassword('');
+      setAuthUserId('');
+    } catch (e: any) {
+      setAuthError(e.message || 'Sign up failed.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!authEmail) {
+      setAuthError('Email required.');
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      await resetPassword(authEmail);
+      setAuthView('login');
+      setAuthEmail('');
+      toast.success('Check your email for reset link.');
+    } catch (e: any) {
+      setAuthError(e.message || 'Failed to send reset.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  return (
+    <div 
+      className="h-dvh flex flex-col bg-zinc-50 dark:bg-zinc-950 overflow-hidden"
+      style={{ height: '100dvh' }}
+    >
+      <div className="flex-1 overflow-y-auto">
+        <div 
+          className="px-4"
+          style={{
+            paddingTop: 'max(3rem, env(safe-area-inset-top))',
+            paddingBottom: 'max(4rem, env(safe-area-inset-bottom))'
+          }}
+        >
+          <div className="max-w-sm mx-auto space-y-6 pt-4">
+            {/* Logo and header - stays near top */}
+            <div className="text-center">
+              <div className="mx-auto h-12 w-12 rounded-xl bg-foreground text-background flex items-center justify-center mb-4">
+                <FileText className="h-6 w-6" />
+              </div>
+              <h1 className="text-3xl font-semibold tracking-tighter">CaseLog</h1>
+              <p className="text-muted-foreground mt-1">Court Visitor Billing</p>
+            </div>
+
+            {/* Form area */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-center">
+                  {authView === 'login' && 'Log in'}
+                  {authView === 'signup' && 'Sign up'}
+                  {authView === 'reset' && 'Reset Password'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form 
+                  onSubmit={authView === 'login' ? handleSignIn : authView === 'signup' ? handleSignUp : handleResetPassword} 
+                  className="space-y-4"
+                >
+                  <div>
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      ref={emailInputRef}
+                      type="email"
+                      value={authEmail}
+                      onChange={(e) => { setAuthEmail(e.target.value); clearAuthError(); }}
+                      onFocus={scrollInputIntoView}
+                      placeholder="you@example.com"
+                      className="mt-1.5"
+                      required
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      autoComplete="email"
+                      autoFocus
+                    />
+                  </div>
+
+                  {(authView === 'login' || authView === 'signup') && (
+                    <div>
+                      <Label htmlFor="password">Password</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={authPassword}
+                        onChange={(e) => { setAuthPassword(e.target.value); clearAuthError(); }}
+                        onFocus={scrollInputIntoView}
+                        placeholder="••••••••"
+                        className="mt-1.5"
+                        required
+                        autoComplete={authView === 'signup' ? 'new-password' : 'current-password'}
+                      />
+                    </div>
+                  )}
+
+                  {authView === 'signup' && (
+                    <div>
+                      <Label htmlFor="userid">Optional UserID / Name</Label>
+                      <Input
+                        id="userid"
+                        value={authUserId}
+                        onChange={(e) => { setAuthUserId(e.target.value); clearAuthError(); }}
+                        onFocus={scrollInputIntoView}
+                        placeholder="e.g. Visitor-123"
+                        className="mt-1.5"
+                        autoCapitalize="none"
+                      />
+                    </div>
+                  )}
+
+                  {authError && (
+                    <p className="text-sm text-destructive bg-destructive/10 p-2 rounded">{authError}</p>
+                  )}
+
+                  <Button 
+                    type="submit" 
+                    className="w-full" 
+                    disabled={authLoading}
+                    aria-busy={authLoading}
+                  >
+                    {authLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {authView === 'login' ? 'Logging in...' : 
+                         authView === 'signup' ? 'Creating account...' : 'Sending link...'}
+                      </>
+                    ) : (
+                      authView === 'login' ? 'Log In' : 
+                      authView === 'signup' ? 'Sign Up' : 'Send Reset Link'
+                    )}
+                  </Button>
+                </form>
+              </CardContent>
+              <CardFooter className="flex flex-col gap-2 text-sm">
+                {authView === 'login' && (
+                  <>
+                    <button 
+                      onClick={() => { setAuthView('signup'); setAuthError(''); }} 
+                      className="text-primary hover:underline active:opacity-70"
+                    >
+                      Don't have an account? Sign up
+                    </button>
+                    <button 
+                      onClick={() => { setAuthView('reset'); setAuthError(''); }} 
+                      className="text-muted-foreground hover:underline active:opacity-70"
+                    >
+                      Forgot password?
+                    </button>
+                  </>
+                )}
+                {(authView === 'signup' || authView === 'reset') && (
+                  <button 
+                    onClick={() => { setAuthView('login'); setAuthError(''); }} 
+                    className="text-primary hover:underline active:opacity-70"
+                  >
+                    Back to login
+                  </button>
+                )}
+                {authView === 'reset' && (
+                  <p className="text-xs text-muted-foreground text-center pt-2">
+                    Check your email for the reset link.
+                  </p>
+                )}
+              </CardFooter>
+            </Card>
+
+            <p className="text-xs text-center text-muted-foreground">
+              {isSupabaseConfigured ? 'Secured with Supabase Auth' : 'Supabase not configured (demo mode)'}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function CaseLogApp() {
   const {
     cases,
@@ -105,78 +355,9 @@ export default function CaseLogApp() {
   } = useAppStore();
 
   const [activeView, setActiveView] = useState<View>('dashboard');
-  const [authView, setAuthView] = useState<'login' | 'signup' | 'reset'>('login');
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authUserId, setAuthUserId] = useState('');
-  const [authError, setAuthError] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
-
-  const handleSignIn = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!authEmail || !authPassword) {
-      setAuthError('Email and password required.');
-      return;
-    }
-    setAuthLoading(true);
-    setAuthError('');
-    try {
-      await signIn(authEmail, authPassword);
-      setAuthEmail('');
-      setAuthPassword('');
-      setActiveView('dashboard');
-    } catch (e: any) {
-      setAuthError(e.message || 'Login failed.');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const handleSignUp = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!authEmail || !authPassword) {
-      setAuthError('Email and password required.');
-      return;
-    }
-    setAuthLoading(true);
-    setAuthError('');
-    try {
-      await signUp(authEmail, authPassword, authUserId || undefined);
-      toast.success('Check your email to confirm signup, then sign in.');
-      setAuthView('login');
-      setAuthEmail('');
-      setAuthPassword('');
-      setAuthUserId('');
-    } catch (e: any) {
-      setAuthError(e.message || 'Sign up failed.');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const handleResetPassword = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!authEmail) {
-      setAuthError('Email required.');
-      return;
-    }
-    setAuthLoading(true);
-    setAuthError('');
-    try {
-      await resetPassword(authEmail);
-      setAuthView('login');
-      setAuthEmail('');
-      toast.success('Check your email for reset link.');
-    } catch (e: any) {
-      setAuthError(e.message || 'Failed to send reset.');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
 
   const handleSignOut = async () => {
     await signOut();
-    setAuthView('login');
     setActiveView('dashboard');
   };
 
@@ -1137,170 +1318,13 @@ export default function CaseLogApp() {
     );
   };
 
-  const scrollInputIntoView = (e: React.FocusEvent<HTMLInputElement>) => {
-    // Delay to allow keyboard to animate in on iOS Safari
-    setTimeout(() => {
-      e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 300);
-  };
-
-  const clearAuthError = () => {
-    if (authError) setAuthError('');
-  };
-
-  const LoginScreen = () => (
-    <div 
-      className="h-dvh flex flex-col bg-zinc-50 dark:bg-zinc-950 overflow-hidden"
-      style={{ height: '100dvh' }}
-    >
-      <div className="flex-1 overflow-y-auto">
-        <div 
-          className="px-4"
-          style={{
-            paddingTop: 'max(3rem, env(safe-area-inset-top))',
-            paddingBottom: 'max(4rem, env(safe-area-inset-bottom))'
-          }}
-        >
-          <div className="max-w-sm mx-auto space-y-6 pt-4">
-            {/* Logo and header - stays near top */}
-            <div className="text-center">
-              <div className="mx-auto h-12 w-12 rounded-xl bg-foreground text-background flex items-center justify-center mb-4">
-                <FileText className="h-6 w-6" />
-              </div>
-              <h1 className="text-3xl font-semibold tracking-tighter">CaseLog</h1>
-              <p className="text-muted-foreground mt-1">Court Visitor Billing</p>
-            </div>
-
-            {/* Scrollable form area */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-center">
-                  {authView === 'login' && 'Log in'}
-                  {authView === 'signup' && 'Sign up'}
-                  {authView === 'reset' && 'Reset Password'}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form 
-                  onSubmit={authView === 'login' ? handleSignIn : authView === 'signup' ? handleSignUp : handleResetPassword} 
-                  className="space-y-4"
-                >
-                  <div>
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={authEmail}
-                      onChange={(e) => { setAuthEmail(e.target.value); clearAuthError(); }}
-                      onFocus={scrollInputIntoView}
-                      placeholder="you@example.com"
-                      className="mt-1.5"
-                      required
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      autoComplete="email"
-                    />
-                  </div>
-
-                  {(authView === 'login' || authView === 'signup') && (
-                    <div>
-                      <Label htmlFor="password">Password</Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        value={authPassword}
-                        onChange={(e) => { setAuthPassword(e.target.value); clearAuthError(); }}
-                        onFocus={scrollInputIntoView}
-                        placeholder="••••••••"
-                        className="mt-1.5"
-                        required
-                        autoComplete={authView === 'signup' ? 'new-password' : 'current-password'}
-                      />
-                    </div>
-                  )}
-
-                  {authView === 'signup' && (
-                    <div>
-                      <Label htmlFor="userid">Optional UserID / Name</Label>
-                      <Input
-                        id="userid"
-                        value={authUserId}
-                        onChange={(e) => { setAuthUserId(e.target.value); clearAuthError(); }}
-                        onFocus={scrollInputIntoView}
-                        placeholder="e.g. Visitor-123"
-                        className="mt-1.5"
-                        autoCapitalize="none"
-                      />
-                    </div>
-                  )}
-
-                  {authError && (
-                    <p className="text-sm text-destructive bg-destructive/10 p-2 rounded">{authError}</p>
-                  )}
-
-                  <Button 
-                    type="submit" 
-                    className="w-full" 
-                    disabled={authLoading}
-                    aria-busy={authLoading}
-                  >
-                    {authLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        {authView === 'login' ? 'Logging in...' : 
-                         authView === 'signup' ? 'Creating account...' : 'Sending link...'}
-                      </>
-                    ) : (
-                      authView === 'login' ? 'Log In' : 
-                      authView === 'signup' ? 'Sign Up' : 'Send Reset Link'
-                    )}
-                  </Button>
-                </form>
-              </CardContent>
-              <CardFooter className="flex flex-col gap-2 text-sm">
-                {authView === 'login' && (
-                  <>
-                    <button 
-                      onClick={() => { setAuthView('signup'); setAuthError(''); }} 
-                      className="text-primary hover:underline active:opacity-70"
-                    >
-                      Don't have an account? Sign up
-                    </button>
-                    <button 
-                      onClick={() => { setAuthView('reset'); setAuthError(''); }} 
-                      className="text-muted-foreground hover:underline active:opacity-70"
-                    >
-                      Forgot password?
-                    </button>
-                  </>
-                )}
-                {(authView === 'signup' || authView === 'reset') && (
-                  <button 
-                    onClick={() => { setAuthView('login'); setAuthError(''); }} 
-                    className="text-primary hover:underline active:opacity-70"
-                  >
-                    Back to login
-                  </button>
-                )}
-                {authView === 'reset' && (
-                  <p className="text-xs text-muted-foreground text-center pt-2">
-                    Check your email for the reset link.
-                  </p>
-                )}
-              </CardFooter>
-            </Card>
-
-            <p className="text-xs text-center text-muted-foreground">
-              {isSupabaseConfigured ? 'Secured with Supabase Auth' : 'Supabase not configured (demo mode)'}
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
   if (!isAuthenticated) {
-    return <LoginScreen />;
+    return <LoginScreen 
+      signIn={signIn} 
+      signUp={signUp} 
+      resetPassword={resetPassword} 
+      isSupabaseConfigured={isSupabaseConfigured} 
+    />;
   }
 
   return (
