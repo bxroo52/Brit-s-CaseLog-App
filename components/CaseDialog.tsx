@@ -36,12 +36,14 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
 
   const [form, setForm] = useState<LocalCaseForm>(() => ({
     respondentName: existingCase?.respondentName || '',
-    caseNumber: existingCase?.caseNumber || '',
+    caseNumber: (existingCase?.caseNumber || '').toUpperCase(),
     assignmentType: normalizeAssignmentType(existingCase?.assignmentType) || 'Initial',
     status: existingCase?.status || 'Open',
     firstTimeBilling: existingCase?.firstTimeBilling ?? false,
     caseNotes: existingCase?.caseNotes || '',
   }));
+
+  const [caseNumberError, setCaseNumberError] = useState<string>('');
 
   const isEditing = !!existingCase;
 
@@ -50,18 +52,38 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
     if (open) {
       setForm({
         respondentName: existingCase?.respondentName || '',
-        caseNumber: existingCase?.caseNumber || '',
+        caseNumber: (existingCase?.caseNumber || '').toUpperCase(),
         assignmentType: normalizeAssignmentType(existingCase?.assignmentType) || 'Initial',
         status: existingCase?.status || 'Open',
         firstTimeBilling: existingCase?.firstTimeBilling ?? false,
         caseNotes: existingCase?.caseNotes || '',
       });
+      setCaseNumberError('');
     }
   }, [open, existingCase]);
 
+  const validateCaseNumber = (value: string): string => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return 'Case number is required.';
+    }
+    // Regex for common Alaska court case formats: uppercase letters, numbers, dashes
+    if (!/^[0-9A-Z-]+$/.test(trimmed)) {
+      return 'Case number must contain letters, numbers, and dashes only (e.g. 3AN-24-00123).';
+    }
+    return '';
+  };
+
   const handleSubmit = async () => {
-    if (!form.respondentName.trim() || !form.caseNumber.trim()) {
-      toast.error('Respondent name and case number are required.');
+    const cnError = validateCaseNumber(form.caseNumber);
+    setCaseNumberError(cnError);
+
+    if (cnError) {
+      return;
+    }
+
+    if (!form.respondentName.trim()) {
+      toast.error('Respondent name is required.');
       return;
     }
 
@@ -90,6 +112,7 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
           firstTimeBilling: false,
           caseNotes: '',
         });
+        setCaseNumberError('');
       }
     } catch (e) {
       toast.error('Failed to save case.');
@@ -120,10 +143,21 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
               <Input
                 id="casenum"
                 value={form.caseNumber}
-                onChange={(e) => setForm({ ...form, caseNumber: e.target.value })}
+                onChange={(e) => {
+                  const upper = e.target.value.toUpperCase();
+                  setForm({ ...form, caseNumber: upper });
+                  setCaseNumberError(validateCaseNumber(upper));
+                }}
+                onBlur={(e) => {
+                  const upper = e.target.value.toUpperCase();
+                  setCaseNumberError(validateCaseNumber(upper));
+                }}
                 placeholder="3AN-24-00123"
-                className="mt-1.5"
+                className="mt-1.5 uppercase"
               />
+              {caseNumberError && (
+                <p className="text-xs text-destructive mt-1">{caseNumberError}</p>
+              )}
             </div>
           </div>
 

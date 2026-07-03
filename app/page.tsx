@@ -10,7 +10,8 @@ import { ExpenseDialog } from '@/components/ExpenseDialog';
 import { SettingsDialog } from '@/components/SettingsDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -37,15 +38,18 @@ import {
   Edit2,
   CheckCircle,
   AlertCircle,
+  LogOut,
+  Settings,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
 import { getRecentMonths, formatMonth, formatCurrency, formatHours, formatDate } from '@/lib/format';
 import { generateCaseInvoicePDF, generateFullBillingPackagePDF } from '@/lib/generateInvoice';
+import { ASSIGNMENT_TYPES } from '@/lib/constants';
 import { buildMonthlyBillingSummary } from '@/lib/db';
-import { Case, TimeEntry, Expense } from '@/types';
+import { Case, TimeEntry, Expense, UserProfile } from '@/types';
 
-type View = 'dashboard' | 'cases' | 'time' | 'expenses' | 'billing';
+type View = 'dashboard' | 'cases' | 'time' | 'expenses' | 'billing' | 'account';
 
 export default function CaseLogApp() {
   const {
@@ -57,6 +61,12 @@ export default function CaseLogApp() {
     selectedMonth,
     searchTerm,
     statusFilter,
+    assignmentFilter,
+    dateFilterField,
+    dateFilterFrom,
+    dateFilterTo,
+    hourlyRateMin,
+    hourlyRateMax,
     billingSummary,
     loadAllData,
     loadProfile,
@@ -65,8 +75,13 @@ export default function CaseLogApp() {
     generateBilling,
     setSearchTerm,
     setStatusFilter,
+    setAssignmentFilter,
+    setDateFilter,
+    setHourlyRateFilter,
+    clearAllFilters,
     getFilteredCases,
     getOpenCases,
+    getFilteredOpenCases,
     getCaseById,
     getTimeForCase,
     getExpensesForCase,
@@ -75,6 +90,8 @@ export default function CaseLogApp() {
     removeExpense,
     editCase,
     pendingChangesCount,
+    saveProfile,
+    clearLocalData,
   } = useAppStore();
 
   const [activeView, setActiveView] = useState<View>('dashboard');
@@ -86,6 +103,7 @@ export default function CaseLogApp() {
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
   const [defaultExpenseCaseId, setDefaultExpenseCaseId] = useState<string | undefined>();
   const [editingExpense, setEditingExpense] = useState<any>(null);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   // Announce loading state for screen readers
   useEffect(() => {
@@ -111,6 +129,7 @@ export default function CaseLogApp() {
 
   const openCases = getOpenCases();
   const filteredCases = getFilteredCases();
+  const filteredOpenCases = getFilteredOpenCases();
 
   const allPending = timeEntries.filter((t) => t.billingStatus === 'Pending');
   const totalPendingHours = allPending.reduce((s, t) => s + t.billableHoursRounded, 0);
@@ -348,8 +367,21 @@ export default function CaseLogApp() {
               <Button onClick={openNewCase} className="gap-2"><Plus className="h-4 w-4" /> New Case</Button>
             </div>
           ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {openCases.slice(0, 6).map((c) => (
+            <>
+              {/* Prominent quick search for open cases on Dashboard */}
+              <Input
+                placeholder="Search open cases by name or number..."
+                className="w-full mb-3 text-base"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              {filteredOpenCases.length === 0 ? (
+                <div className="text-center py-4 text-sm text-muted-foreground border rounded-lg">
+                  No open cases match your search. <button onClick={() => setSearchTerm('')} className="underline">Clear</button>
+                </div>
+              ) : (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {filteredOpenCases.slice(0, 6).map((c) => (
                 <div
                   key={c.id}
                   className="log-card flex justify-between gap-3 cursor-pointer hover:bg-muted/50"
@@ -370,6 +402,8 @@ export default function CaseLogApp() {
                 </div>
               ))}
             </div>
+          )}
+            </>
           )}
         </CardContent>
       </Card>
@@ -429,13 +463,16 @@ export default function CaseLogApp() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-4">
+      <div className="mb-3">
         <Input
           placeholder="Search respondent or case #..."
-          className="w-full sm:w-72"
+          className="w-full text-base"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
+      </div>
+
+      <div className="flex flex-wrap gap-3 mb-2">
         <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -444,8 +481,91 @@ export default function CaseLogApp() {
             <SelectItem value="Closed">Closed</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(''); setStatusFilter('All'); }}>Clear</Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+          className="gap-1"
+        >
+          {showAdvancedFilters ? 'Hide' : 'Show'} Advanced Filters
+          {(assignmentFilter.length > 0 || dateFilterFrom || dateFilterTo || hourlyRateMin !== '' || hourlyRateMax !== '') && ' •'}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(''); setStatusFilter('All'); clearAllFilters(); setShowAdvancedFilters(false); }}>Clear All</Button>
       </div>
+
+      {showAdvancedFilters && (
+        <div className="mb-4 p-3 border rounded-lg bg-muted/30 space-y-3 text-sm">
+          {/* Assignment Type chips */}
+          <div>
+            <div className="text-xs text-muted-foreground mb-1">Assignment Type</div>
+            <div className="flex flex-wrap gap-1">
+              {ASSIGNMENT_TYPES.map((type) => {
+                const active = assignmentFilter.includes(type);
+                return (
+                  <button
+                    key={type}
+                    onClick={() => {
+                      const newFilter = active
+                        ? assignmentFilter.filter(t => t !== type)
+                        : [...assignmentFilter, type];
+                      setAssignmentFilter(newFilter);
+                    }}
+                    className={`px-2 py-1 text-xs rounded-full border ${active ? 'bg-primary text-primary-foreground' : 'bg-background'}`}
+                  >
+                    {type}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Date range */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Date Field</div>
+              <Select value={dateFilterField} onValueChange={(v: any) => setDateFilter(v, dateFilterFrom, dateFilterTo)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="createdAt">First Contact (Created)</SelectItem>
+                  <SelectItem value="updatedAt">Last Updated</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">From</div>
+              <Input type="date" value={dateFilterFrom} onChange={(e) => setDateFilter(dateFilterField, e.target.value, dateFilterTo)} className="text-sm" />
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">To</div>
+              <Input type="date" value={dateFilterTo} onChange={(e) => setDateFilter(dateFilterField, dateFilterFrom, e.target.value)} className="text-sm" />
+            </div>
+          </div>
+
+          {/* Hourly Rate range */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Min Rate ($)</div>
+              <Input
+                type="number"
+                placeholder="0"
+                value={hourlyRateMin}
+                onChange={(e) => setHourlyRateFilter(e.target.value === '' ? '' : parseFloat(e.target.value), hourlyRateMax)}
+                className="text-sm"
+              />
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Max Rate ($)</div>
+              <Input
+                type="number"
+                placeholder="No max"
+                value={hourlyRateMax}
+                onChange={(e) => setHourlyRateFilter(hourlyRateMin, e.target.value === '' ? '' : parseFloat(e.target.value))}
+                className="text-sm"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mobile: Stack into cards for better experience */}
       <div className="md:hidden space-y-3">
@@ -840,6 +960,107 @@ export default function CaseLogApp() {
     </div>
   );
 
+  const AccountView = () => {
+    const [editForm, setEditForm] = useState<Partial<UserProfile>>({});
+    const [isEditing, setIsEditing] = useState(false);
+
+    useEffect(() => {
+      if (profile) {
+        setEditForm({ ...profile });
+      }
+    }, [profile]);
+
+    const handleSaveProfile = async () => {
+      try {
+        await saveProfile(editForm);
+        toast.success('Profile updated.');
+        setIsEditing(false);
+      } catch (e) {
+        toast.error('Failed to save profile.');
+      }
+    };
+
+    const handleCancelEdit = () => {
+      if (profile) setEditForm({ ...profile });
+      setIsEditing(false);
+    };
+
+    const handleLogout = async () => {
+      if (!confirm('Logout and clear all local data? This cannot be undone.')) return;
+      await clearLocalData();
+      toast('Logged out. All data cleared.');
+    };
+
+    const displayName = profile?.name || 'Court Visitor';
+    const initials = displayName.split(/\s+/).map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'CV';
+
+    return (
+      <div className="space-y-6 max-w-md mx-auto">
+        <div className="flex items-center gap-4">
+          <div className="h-16 w-16 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xl font-bold ring-2 ring-primary/20">
+            {initials}
+          </div>
+          <div>
+            <div className="text-2xl font-semibold">{displayName}</div>
+            <div className="text-muted-foreground">{profile?.email || '—'}</div>
+            <div className="text-sm text-muted-foreground mt-0.5">{profile?.title || 'Court Visitor'}</div>
+          </div>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Profile</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {[
+              { label: 'Name', key: 'name' as const, value: editForm.name || '' },
+              { label: 'Email', key: 'email' as const, value: editForm.email || '' },
+              { label: 'Phone', key: 'phone' as const, value: editForm.phone || '' },
+              { label: 'Court Visitor ID', key: 'courtVisitorId' as const, value: editForm.courtVisitorId || '' },
+              { label: 'Organization', key: 'organization' as const, value: editForm.organization || '' },
+            ].map(({ label, key, value }) => (
+              <div key={key}>
+                <Label>{label}</Label>
+                {isEditing ? (
+                  <Input
+                    value={value}
+                    onChange={(e) => setEditForm({ ...editForm, [key]: e.target.value })}
+                    className="mt-1.5"
+                  />
+                ) : (
+                  <div className="mt-1.5 text-sm py-2 px-3 border rounded-md bg-muted/30">{value || '—'}</div>
+                )}
+              </div>
+            ))}
+          </CardContent>
+          <CardFooter className="flex gap-2">
+            {isEditing ? (
+              <>
+                <Button onClick={handleSaveProfile} className="flex-1">Save Changes</Button>
+                <Button variant="outline" onClick={handleCancelEdit} className="flex-1">Cancel</Button>
+              </>
+            ) : (
+              <Button onClick={() => setIsEditing(true)} className="flex-1">Edit Profile</Button>
+            )}
+          </CardFooter>
+        </Card>
+
+        <div className="space-y-3">
+          <Button variant="outline" className="w-full justify-start gap-2" onClick={() => setSettingsOpen(true)}>
+            <Settings className="h-4 w-4" /> Settings
+          </Button>
+          <Button variant="destructive" className="w-full justify-start gap-2" onClick={handleLogout}>
+            <LogOut className="h-4 w-4" /> Logout &amp; Clear Data
+          </Button>
+        </div>
+
+        <p className="text-xs text-center text-muted-foreground pt-4">
+          Your data is stored locally on this device.
+        </p>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
       <AppHeader
@@ -854,6 +1075,7 @@ export default function CaseLogApp() {
         {activeView === 'time' && <TimeView />}
         {activeView === 'expenses' && <ExpensesView />}
         {activeView === 'billing' && <BillingView />}
+        {activeView === 'account' && <AccountView />}
       </main>
 
       <BottomTabBar activeView={activeView} onViewChange={handleViewChange} />

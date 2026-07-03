@@ -54,6 +54,12 @@ interface AppState {
   currentCaseId: string | null;
   searchTerm: string;
   statusFilter: 'All' | 'Open' | 'Closed';
+  assignmentFilter: string[];
+  dateFilterField: 'createdAt' | 'updatedAt';
+  dateFilterFrom: string;
+  dateFilterTo: string;
+  hourlyRateMin: number | '';
+  hourlyRateMax: number | '';
 
   // Billing
   billingSummary: any | null;
@@ -97,6 +103,10 @@ interface AppState {
   // Filters / UI
   setSearchTerm: (term: string) => void;
   setStatusFilter: (filter: 'All' | 'Open' | 'Closed') => void;
+  setAssignmentFilter: (types: string[]) => void;
+  setDateFilter: (field: 'createdAt' | 'updatedAt', from: string, to: string) => void;
+  setHourlyRateFilter: (min: number | '', max: number | '') => void;
+  clearAllFilters: () => void;
 
   // Demo seed
   seedDemoData: () => Promise<void>;
@@ -108,6 +118,7 @@ interface AppState {
 
   // Derived
   getOpenCases: () => Case[];
+  getFilteredOpenCases: () => Case[];
   getFilteredCases: () => Case[];
   getCaseById: (id: string) => Case | undefined;
 }
@@ -127,6 +138,12 @@ export const useAppStore = create<AppState>()(
       currentCaseId: null,
       searchTerm: '',
       statusFilter: 'All',
+      assignmentFilter: [],
+      dateFilterField: 'updatedAt',
+      dateFilterFrom: '',
+      dateFilterTo: '',
+      hourlyRateMin: '',
+      hourlyRateMax: '',
 
       billingSummary: null,
       isGenerating: false,
@@ -175,6 +192,8 @@ export const useAppStore = create<AppState>()(
         set((state) => ({ cases: [newCase, ...state.cases] }));
         await queueChange('upsert', 'cases', newCase.id, newCase);
         get().refreshSyncStatus();
+        // refresh billing preview with new case
+        get().loadBillingSummary(get().selectedMonth).catch(() => {});
         // UI updates instantly from Dexie
         return newCase;
       },
@@ -186,6 +205,8 @@ export const useAppStore = create<AppState>()(
         }));
         queueChange('upsert', 'cases', id, updated);
         get().refreshSyncStatus();
+        // refresh billing preview with edited case
+        get().loadBillingSummary(get().selectedMonth).catch(() => {});
       },
 
       removeCase: async (id) => {
@@ -198,6 +219,8 @@ export const useAppStore = create<AppState>()(
         }));
         queueChange('delete', 'cases', id, { id });
         get().refreshSyncStatus();
+        // refresh billing preview after delete
+        get().loadBillingSummary(get().selectedMonth).catch(() => {});
       },
 
       setCurrentCase: (id) => set({ currentCaseId: id }),
@@ -347,6 +370,10 @@ export const useAppStore = create<AppState>()(
       // ---- Filters ----
       setSearchTerm: (term) => set({ searchTerm: term }),
       setStatusFilter: (filter) => set({ statusFilter: filter }),
+      setAssignmentFilter: (types) => set({ assignmentFilter: types }),
+      setDateFilter: (field, from, to) => set({ dateFilterField: field, dateFilterFrom: from, dateFilterTo: to }),
+      setHourlyRateFilter: (min, max) => set({ hourlyRateMin: min, hourlyRateMax: max }),
+      clearAllFilters: () => set({ searchTerm: '', statusFilter: 'All', assignmentFilter: [], dateFilterFrom: '', dateFilterTo: '', hourlyRateMin: '', hourlyRateMax: '' }),
 
       // ---- Sync actions implementation ----
       refreshSyncStatus: async () => {
@@ -434,12 +461,12 @@ export const useAppStore = create<AppState>()(
       // ---- Derived ----
       getOpenCases: () => get().cases.filter((c) => c.status === 'Open'),
 
-      getFilteredCases: () => {
-        const { cases, searchTerm, statusFilter } = get();
-        let result = [...cases];
+      getFilteredOpenCases: () => {
+        const { cases, searchTerm, assignmentFilter, dateFilterField, dateFilterFrom, dateFilterTo, hourlyRateMin, hourlyRateMax } = get();
+        let result = cases.filter((c) => c.status === 'Open');
 
-        if (statusFilter !== 'All') {
-          result = result.filter((c) => c.status === statusFilter);
+        if (assignmentFilter.length > 0) {
+          result = result.filter((c) => assignmentFilter.includes(c.assignmentType));
         }
 
         if (searchTerm.trim()) {
@@ -450,6 +477,75 @@ export const useAppStore = create<AppState>()(
               c.caseNumber.toLowerCase().includes(q) ||
               (c.caseNotes || '').toLowerCase().includes(q)
           );
+        }
+
+        const parseDate = (d: string) => d ? new Date(d + 'T00:00:00') : null;
+        const fromDate = parseDate(dateFilterFrom);
+        const toDate = parseDate(dateFilterTo);
+        if (fromDate || toDate) {
+          result = result.filter((c) => {
+            const caseDate = new Date( (dateFilterField === 'createdAt' ? c.createdAt : c.updatedAt) );
+            if (fromDate && caseDate < fromDate) return false;
+            if (toDate && caseDate > toDate) return false;
+            return true;
+          });
+        }
+
+        if (hourlyRateMin !== '' || hourlyRateMax !== '') {
+          result = result.filter((c) => {
+            const rate = c.hourlyRate;
+            if (hourlyRateMin !== '' && rate < hourlyRateMin) return false;
+            if (hourlyRateMax !== '' && rate > hourlyRateMax) return false;
+            return true;
+          });
+        }
+
+        return result;
+      },
+
+      getFilteredCases: () => {
+        const { cases, searchTerm, statusFilter, assignmentFilter, dateFilterField, dateFilterFrom, dateFilterTo, hourlyRateMin, hourlyRateMax } = get();
+        let result = [...cases];
+
+        if (statusFilter !== 'All') {
+          result = result.filter((c) => c.status === statusFilter);
+        }
+
+        if (assignmentFilter.length > 0) {
+          result = result.filter((c) => assignmentFilter.includes(c.assignmentType));
+        }
+
+        if (searchTerm.trim()) {
+          const q = searchTerm.toLowerCase().trim();
+          result = result.filter(
+            (c) =>
+              c.respondentName.toLowerCase().includes(q) ||
+              c.caseNumber.toLowerCase().includes(q) ||
+              (c.caseNotes || '').toLowerCase().includes(q)
+          );
+        }
+
+        // Date range filter
+        const parseDate = (d: string) => d ? new Date(d + 'T00:00:00') : null;
+        const fromDate = parseDate(dateFilterFrom);
+        const toDate = parseDate(dateFilterTo);
+        if (fromDate || toDate) {
+          result = result.filter((c) => {
+            const caseDate = new Date( (dateFilterField === 'createdAt' ? c.createdAt : c.updatedAt) );
+            if (fromDate && caseDate < fromDate) return false;
+            if (toDate && caseDate > toDate) return false;
+            return true;
+          });
+        }
+
+        // Hourly rate range
+        if (hourlyRateMin !== '' || hourlyRateMax !== '') {
+          result = result.filter((c) => {
+            const rate = c.hourlyRate;
+            if (hourlyRateMin !== '' && rate < hourlyRateMin) return false;
+            if (hourlyRateMax !== '' && rate > hourlyRateMax) return false;
+            return true;
+          });
         }
 
         return result.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -465,6 +561,12 @@ export const useAppStore = create<AppState>()(
         selectedMonth: state.selectedMonth,
         searchTerm: state.searchTerm,
         statusFilter: state.statusFilter,
+        assignmentFilter: state.assignmentFilter,
+        dateFilterField: state.dateFilterField,
+        dateFilterFrom: state.dateFilterFrom,
+        dateFilterTo: state.dateFilterTo,
+        hourlyRateMin: state.hourlyRateMin,
+        hourlyRateMax: state.hourlyRateMax,
       }),
     }
   )

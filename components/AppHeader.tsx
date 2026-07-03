@@ -11,12 +11,13 @@ import {
   Users,
   Calendar,
   Settings,
+  User,
 } from 'lucide-react';
 import { formatMonth } from '@/lib/format';
 
 interface NavItem {
   label: string;
-  view: 'dashboard' | 'cases' | 'time' | 'expenses' | 'billing';
+  view: 'dashboard' | 'cases' | 'time' | 'expenses' | 'billing' | 'account';
   icon: React.ComponentType<{ className?: string }>;
 }
 
@@ -26,10 +27,11 @@ const navItems: NavItem[] = [
   { label: 'Log Time', view: 'time', icon: Clock },
   { label: 'Expenses', view: 'expenses', icon: DollarSign },
   { label: 'Billing', view: 'billing', icon: Calendar },
+  { label: 'Account', view: 'account', icon: User },
 ];
 
 interface AppHeaderProps {
-  activeView: 'dashboard' | 'cases' | 'time' | 'expenses' | 'billing';
+  activeView: 'dashboard' | 'cases' | 'time' | 'expenses' | 'billing' | 'account';
   onViewChange: (view: any) => void;
   onOpenSettings: () => void;
 }
