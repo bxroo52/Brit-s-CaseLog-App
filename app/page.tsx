@@ -633,99 +633,198 @@ export default function CaseLogApp() {
   // THE BILLING VIEW
   const BillingView = () => (
     <div className="max-w-5xl">
-      <div className="flex items-center justify-between mb-6">
+      <div>
+        <h2 className="section-title text-2xl">Billing Center</h2>
+        <p className="text-sm text-muted-foreground mt-1">Select a month to preview activity, then generate a complete PDF package ready for the Alaska Court System.</p>
+      </div>
+
+      {/* Month selector + primary actions - mobile first */}
+      <div className="rounded-xl border bg-card p-4 space-y-3 mb-2">
         <div>
-          <h2 className="section-title">Billing Center</h2>
-          <p className="text-muted-foreground">Select month → Preview → One click. Produces Alaska Court System-ready statements. No more manual spreadsheets.</p>
-        </div>
-        <div className="flex gap-2 items-center">
+          <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">Billing Month</div>
           <Select value={billingMonth} onValueChange={handleMonthChange}>
-            <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full h-12 text-base">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {months.map((m) => (
                 <SelectItem key={m} value={m}>{formatMonth(m)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={handleGenerateBilling} disabled={!profile} className="gap-2">
-            <Download className="h-4 w-4" /> Generate Full Billing Package
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button 
+            onClick={() => loadBillingSummary(billingMonth)} 
+            variant="outline" 
+            className="h-11 flex-1 text-base"
+          >
+            Refresh Preview
+          </Button>
+          <Button 
+            onClick={handleGenerateBilling} 
+            disabled={!profile} 
+            className="h-11 flex-1 gap-2 text-base"
+          >
+            <Download className="h-4 w-4" /> Generate Full Package
           </Button>
         </div>
       </div>
 
       {!currentSummary && (
-        <Button onClick={() => loadBillingSummary(billingMonth)} variant="outline">Load Preview for {formatMonth(billingMonth)}</Button>
+        <div className="text-center py-4 text-sm text-muted-foreground">
+          Select a month above to load the billing preview.
+        </div>
       )}
 
+      <div className="space-y-5">
       {currentSummary && (
         <>
           {pendingChangesCount > 0 && (
-            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 flex items-center gap-2">
-              <span>⚠️ You have {pendingChangesCount} unsynced local change(s). Billing numbers may be incomplete until you sync.</span>
+            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              ⚠️ You have {pendingChangesCount} unsynced local change(s). Billing numbers may be incomplete until you sync.
             </div>
           )}
-          <Card className="mb-4">
-            <CardContent className="pt-6 grid grid-cols-2 md:grid-cols-5 gap-x-6 gap-y-3 text-sm">
-              <div><span className="text-muted-foreground">Cases with activity:</span> <span className="font-semibold">{currentSummary.cases.length}</span></div>
-              <div><span className="text-muted-foreground">Total Hours:</span> <span className="font-semibold font-mono">{formatHours(currentSummary.overallTimeHours)}</span></div>
-              <div><span className="text-muted-foreground">Time Amount:</span> <span className="font-semibold font-mono">{formatCurrency(currentSummary.overallTimeAmount)}</span></div>
-              <div><span className="text-muted-foreground">Expenses:</span> <span className="font-semibold font-mono">{formatCurrency(currentSummary.overallExpenses)}</span></div>
-              <div className="font-semibold text-lg md:col-span-1 col-span-2"><span className="text-muted-foreground text-sm block md:inline">Grand Total</span> {formatCurrency(currentSummary.grandTotal)}</div>
-            </CardContent>
-          </Card>
-
-          <div className="flex justify-between mb-2">
-            <div className="text-sm font-medium">Case Breakdown — {formatMonth(billingMonth)}</div>
-            <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5"><Download className="h-3.5 w-3.5" /> Export CSV</Button>
+          {/* Summary stats - mobile friendly cards */}
+          <div>
+            <div className="text-sm font-medium mb-2">Summary for {formatMonth(billingMonth)}</div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Cases</div>
+                <div className="text-xl font-semibold tabular-nums mt-0.5">{currentSummary.cases.length}</div>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total Hours</div>
+                <div className="text-xl font-semibold font-mono tabular-nums mt-0.5">{formatHours(currentSummary.overallTimeHours)}</div>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Time Amount</div>
+                <div className="text-xl font-semibold font-mono tabular-nums mt-0.5">{formatCurrency(currentSummary.overallTimeAmount)}</div>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Expenses</div>
+                <div className="text-xl font-semibold font-mono tabular-nums mt-0.5">{formatCurrency(currentSummary.overallExpenses)}</div>
+              </div>
+              <div className="col-span-2 rounded-lg border bg-primary/5 p-3 flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">Grand Total</div>
+                <div className="text-xl sm:text-2xl font-semibold font-mono tabular-nums">{formatCurrency(currentSummary.grandTotal)}</div>
+              </div>
+            </div>
           </div>
 
-          <div className="rounded-xl border overflow-hidden mb-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Respondent / Case</TableHead>
-                  <TableHead>Hours</TableHead>
-                  <TableHead>Time $</TableHead>
-                  <TableHead>Expenses</TableHead>
-                  <TableHead className="text-right">Case Total</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {currentSummary.cases.length === 0 && (
-                  <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">Nothing to bill for {formatMonth(billingMonth)}. Payroll isn't psychic — go log some work.</TableCell></TableRow>
-                )}
-                {currentSummary.cases.map((cs: any) => (
-                  <TableRow key={cs.caseId}>
-                    <TableCell>
-                      <div className="font-medium">{cs.respondentName}</div>
-                      <div className="text-xs text-muted-foreground">{cs.caseNumber} • {cs.assignmentType}</div>
-                    </TableCell>
-                    <TableCell className="font-mono">{formatHours(cs.timeTotal)}</TableCell>
-                    <TableCell className="font-mono">{formatCurrency(cs.timeAmount)}</TableCell>
-                    <TableCell className="font-mono">{formatCurrency(cs.expensesTotal)}</TableCell>
-                    <TableCell className="font-semibold text-right font-mono">{formatCurrency(cs.grandTotal)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button size="sm" variant="outline" onClick={() => handleDownloadCaseInvoice(cs.caseId)}>
-                        Download Invoice
-                      </Button>
-                    </TableCell>
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-medium">Case Breakdown</div>
+              <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5 h-9"><Download className="h-3.5 w-3.5" /> Export CSV</Button>
+            </div>
+
+            {/* Mobile: stacked cards for readability on portrait */}
+            <div className="md:hidden space-y-3">
+              {currentSummary.cases.length === 0 && (
+                <div className="rounded-lg border p-6 text-center text-sm text-muted-foreground">
+                  No activity logged for {formatMonth(billingMonth)}. Log time or expenses to generate a statement.
+                </div>
+              )}
+              {currentSummary.cases.map((cs: any) => (
+                <div key={cs.caseId} className="rounded-lg border p-3 space-y-2">
+                  <div className="flex justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm leading-tight">{cs.respondentName}</div>
+                      <div className="text-[11px] text-muted-foreground truncate">{cs.caseNumber} • {cs.assignmentType}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-semibold tabular-nums font-mono text-sm">{formatCurrency(cs.grandTotal)}</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-x-2 gap-y-1 text-xs pt-2 border-t">
+                    <div>
+                      <span className="text-muted-foreground">Hours</span><br />
+                      <span className="font-mono font-medium">{formatHours(cs.timeTotal)}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Time</span><br />
+                      <span className="font-mono font-medium">{formatCurrency(cs.timeAmount)}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Expenses</span><br />
+                      <span className="font-mono font-medium">{formatCurrency(cs.expensesTotal)}</span>
+                    </div>
+                  </div>
+
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="w-full mt-1 h-9" 
+                    onClick={() => handleDownloadCaseInvoice(cs.caseId)}
+                  >
+                    Download Invoice PDF
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden md:block rounded-xl border overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Respondent / Case</TableHead>
+                    <TableHead>Hours</TableHead>
+                    <TableHead>Time $</TableHead>
+                    <TableHead>Expenses</TableHead>
+                    <TableHead className="text-right">Case Total</TableHead>
+                    <TableHead></TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {currentSummary.cases.length === 0 && (
+                    <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">No activity logged for this month.</TableCell></TableRow>
+                  )}
+                  {currentSummary.cases.map((cs: any) => (
+                    <TableRow key={cs.caseId}>
+                      <TableCell>
+                        <div className="font-medium">{cs.respondentName}</div>
+                        <div className="text-xs text-muted-foreground">{cs.caseNumber} • {cs.assignmentType}</div>
+                      </TableCell>
+                      <TableCell className="font-mono">{formatHours(cs.timeTotal)}</TableCell>
+                      <TableCell className="font-mono">{formatCurrency(cs.timeAmount)}</TableCell>
+                      <TableCell className="font-mono">{formatCurrency(cs.expensesTotal)}</TableCell>
+                      <TableCell className="font-semibold text-right font-mono">{formatCurrency(cs.grandTotal)}</TableCell>
+                      <TableCell className="text-right">
+                        <Button size="sm" variant="outline" onClick={() => handleDownloadCaseInvoice(cs.caseId)}>
+                          Download Invoice
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </div>
 
-          <div className="flex gap-3 justify-end">
-            <Button variant="secondary" onClick={exportCSV}>Download CSV</Button>
-            <Button onClick={handleGenerateBilling} size="lg" className="gap-2 px-8">
-              <Download className="h-4 w-4" /> GENERATE &amp; DOWNLOAD FULL PACKAGE PDF
+          {/* Bottom actions - large tappable buttons on mobile */}
+          <div className="pt-1 space-y-2 sm:space-y-0 sm:flex sm:gap-3 sm:justify-end">
+            <Button 
+              variant="secondary" 
+              onClick={exportCSV}
+              className="w-full sm:w-auto h-11 text-base"
+            >
+              Download CSV
+            </Button>
+            <Button 
+              onClick={handleGenerateBilling} 
+              size="lg" 
+              className="w-full sm:w-auto gap-2 px-6 h-11 text-base"
+            >
+              <Download className="h-4 w-4" /> GENERATE &amp; DOWNLOAD FULL PACKAGE
             </Button>
           </div>
 
-          <p className="text-[10px] text-center text-muted-foreground mt-3">Generating marks all pending time for the month as BILLED. PDFs contain zero jokes.</p>
+          <p className="text-xs text-center sm:text-right text-muted-foreground mt-2">Generating the package marks all pending entries for the month as BILLED.</p>
         </>
       )}
+      </div>
     </div>
   );
 
