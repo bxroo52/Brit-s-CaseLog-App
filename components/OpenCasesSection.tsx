@@ -6,9 +6,12 @@ interface Props {
   openCases: Case[];
   onNewCase: () => void;
   onManageAll?: () => void;
+  onEditCase?: (id: string) => void;
+  onLogTime?: (id: string) => void;
+  onLogExpense?: (id: string) => void;
 }
 
-export default function OpenCasesSection({ openCases, onNewCase, onManageAll }: Props) {
+export default function OpenCasesSection({ openCases, onNewCase, onManageAll, onEditCase, onLogTime, onLogExpense }: Props) {
   return (
     <div className="bg-[#1C1C1E] rounded-3xl p-6">
       <div className="flex justify-between items-center mb-4">
@@ -30,7 +33,11 @@ export default function OpenCasesSection({ openCases, onNewCase, onManageAll }: 
       <div className="space-y-3 mb-6">
         {openCases.length > 0 ? (
           openCases.map((c) => (
-            <div key={c.id} className="bg-[#2C2C2E] rounded-2xl p-4 flex justify-between items-center">
+            <div 
+              key={c.id} 
+              onClick={() => onEditCase?.(c.id)}
+              className="bg-[#2C2C2E] rounded-2xl p-4 flex justify-between items-center cursor-pointer active:bg-[#3A3A3C]"
+            >
               <div>
                 <div className="font-medium">{c.respondentLastName}, {c.respondentFirstName}</div>
                 <div className="text-sm text-gray-400">{c.caseNumber} • {c.assignmentType}</div>
@@ -39,8 +46,18 @@ export default function OpenCasesSection({ openCases, onNewCase, onManageAll }: 
               <div className="flex flex-col items-end gap-2">
                 <div className="bg-green-500/20 text-green-400 text-xs px-3 py-1 rounded-full">Open</div>
                 <div className="flex gap-2 text-xs">
-                  <button className="bg-[#0A84FF]/10 text-[#0A84FF] px-4 py-1 rounded-xl">+ Time</button>
-                  <button className="bg-[#0A84FF]/10 text-[#0A84FF] px-4 py-1 rounded-xl">+ Exp</button>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onLogTime?.(c.id); }} 
+                    className="bg-[#0A84FF]/10 text-[#0A84FF] px-4 py-1 rounded-xl"
+                  >
+                    + Time
+                  </button>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onLogExpense?.(c.id); }} 
+                    className="bg-[#0A84FF]/10 text-[#0A84FF] px-4 py-1 rounded-xl"
+                  >
+                    + Exp
+                  </button>
                 </div>
               </div>
             </div>

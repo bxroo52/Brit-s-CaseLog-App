@@ -2,67 +2,78 @@
 
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/stores/useAppStore';
+import { ACTIVITY_TYPES } from '@/lib/constants';
 
-export default function ProfileForm({ 
-  onSave, 
-  onClose 
-}: { 
+export default function ProfileForm({ onSave, onClose }: { 
   onSave: (data: any) => void; 
   onClose: () => void; 
 }) {
   const { profile, activityRates } = useAppStore();
 
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    rates: {
-      Contact: 0,
-      Court: 0,
-      Research: 0,
-      'Report Writing': 0,
-      'Drive Time': 0,
-      'Wait Time': 0,
-      Other: 0,
-    } as Record<string, number>,
+  const [formData, setFormData] = useState(() => {
+    const initialRates: Record<string, string> = {
+      Contact: '',
+      Court: '',
+      Research: '',
+      'Report Writing': '',
+      'Drive Time': '',
+      'Wait Time': '',
+      Other: '',
+    };
+
+    ACTIVITY_TYPES.forEach((activity) => {
+      const found = activityRates.find((r) => r.activityName === activity);
+      if (found) {
+        initialRates[activity] = String(found.hourlyRate);
+      }
+    });
+
+    return {
+      name: profile?.name || '',
+      email: profile?.email || '',
+      phone: profile?.phone || '',
+      rates: initialRates,
+    };
   });
 
-  // Preload from store when available
+  // Keep in sync if store updates while form is open
   useEffect(() => {
-    if (profile) {
-      setFormData(prev => ({
-        ...prev,
-        name: profile.name || '',
-        email: profile.email || '',
-        phone: profile.phone || '',
-      }));
-    }
+    setFormData(prev => {
+      const newRates = { ...prev.rates };
 
-    if (activityRates && activityRates.length > 0) {
-      const loadedRates: Record<string, number> = { ...formData.rates };
-      activityRates.forEach(r => {
-        if (r.activityName in loadedRates) {
-          loadedRates[r.activityName] = r.hourlyRate;
+      ACTIVITY_TYPES.forEach((activity) => {
+        const found = activityRates.find((r) => r.activityName === activity);
+        if (found) {
+          newRates[activity] = String(found.hourlyRate);
         }
       });
-      setFormData(prev => ({
+
+      return {
         ...prev,
-        rates: loadedRates,
-      }));
-    }
+        name: profile?.name || prev.name,
+        email: profile?.email || prev.email,
+        phone: profile?.phone || prev.phone,
+        rates: newRates,
+      };
+    });
   }, [profile, activityRates]);
 
   const handleRateChange = (activity: string, value: string) => {
-    const num = parseFloat(value) || 0;
     setFormData(prev => ({
       ...prev,
-      rates: { ...prev.rates, [activity]: num }
+      rates: { ...prev.rates, [activity]: value }
     }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    
+    // Convert empty strings to 0 on save
+    const processedRates = Object.fromEntries(
+      Object.entries(formData.rates).map(([k, v]) => [k, v === '' ? 0 : parseFloat(v) || 0])
+    );
+
+    onSave({ ...formData, rates: processedRates });
   };
 
   return (
@@ -74,51 +85,29 @@ export default function ProfileForm({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Name */}
+          {/* Name, Email, Phone - blank */}
           <div>
             <label className="block text-sm font-medium text-gray-400 mb-1.5">Name</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-              placeholder="Enter your full name"
-              className="w-full bg-[#2C2C2E] border border-[#3A3A3C] rounded-2xl px-4 py-3"
-            />
+            <input type="text" value={formData.name} onChange={e => setFormData(p => ({...p, name: e.target.value}))} placeholder="Enter your full name" className="w-full bg-[#2C2C2E] border border-[#3A3A3C] rounded-2xl px-4 py-3" />
           </div>
 
-          {/* Email */}
           <div>
             <label className="block text-sm font-medium text-gray-400 mb-1.5">Email</label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-              placeholder="your@email.com"
-              className="w-full bg-[#2C2C2E] border border-[#3A3A3C] rounded-2xl px-4 py-3"
-            />
+            <input type="email" value={formData.email} onChange={e => setFormData(p => ({...p, email: e.target.value}))} placeholder="your@email.com" className="w-full bg-[#2C2C2E] border border-[#3A3A3C] rounded-2xl px-4 py-3" />
           </div>
 
-          {/* Phone */}
           <div>
             <label className="block text-sm font-medium text-gray-400 mb-1.5">Phone</label>
-            <input
-              type="tel"
-              value={formData.phone}
-              onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-              placeholder="(907) 555-0123"
-              className="w-full bg-[#2C2C2E] border border-[#3A3A3C] rounded-2xl px-4 py-3"
-            />
+            <input type="tel" value={formData.phone} onChange={e => setFormData(p => ({...p, phone: e.target.value}))} placeholder="(907) 555-0123" className="w-full bg-[#2C2C2E] border border-[#3A3A3C] rounded-2xl px-4 py-3" />
           </div>
 
-          {/* Activity Rates - ALL DEFAULT TO 0 */}
+          {/* Activity Rates - BLANK by default */}
           <div>
             <h3 className="font-semibold mb-1">Activity Rates</h3>
-            <p className="text-sm text-gray-400 mb-4">
-              Set your hourly rate for each activity type (used in Log Time).
-            </p>
+            <p className="text-sm text-gray-400 mb-4">Set your hourly rate for each activity type.</p>
 
             {Object.entries(formData.rates).map(([activity, rate]) => (
-              <div key={activity} className="flex items-center justify-between py-3 border-b border-[#3A3A3C] last:border-none">
+              <div key={activity} className="flex items-center justify-between py-3 border-b border-[#3A3A3C]">
                 <span className="text-white">{activity}</span>
                 <div className="flex items-center gap-2">
                   <span className="text-gray-400">$</span>
@@ -128,27 +117,17 @@ export default function ProfileForm({
                     onChange={(e) => handleRateChange(activity, e.target.value)}
                     step="0.01"
                     min="0"
-                    className="w-24 bg-[#2C2C2E] border border-[#3A3A3C] rounded-xl px-3 py-2 text-right text-white"
+                    placeholder="0.00"
+                    className="w-24 bg-[#2C2C2E] border border-[#3A3A3C] rounded-xl px-3 py-2 text-right placeholder-gray-500"
                   />
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="pt-4 space-y-3">
-            <button
-              type="submit"
-              className="w-full bg-white text-black font-semibold py-4 rounded-2xl"
-            >
-              Save Profile
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-full border border-gray-600 py-4 rounded-2xl"
-            >
-              Close
-            </button>
+          <div className="pt-6 space-y-3">
+            <button type="submit" className="w-full bg-white text-black font-semibold py-4 rounded-2xl">Save Profile</button>
+            <button type="button" onClick={onClose} className="w-full border border-gray-600 py-4 rounded-2xl">Close</button>
           </div>
         </form>
       </div>

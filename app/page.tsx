@@ -8,6 +8,7 @@ import { AppHeader, BottomTabBar } from '@/components/AppHeader';
 import NewCaseForm from '@/components/NewCaseForm';
 import OpenCasesSection from '@/components/OpenCasesSection';
 import ProfileForm from '@/components/ProfileForm';
+import ProfileOverview from '@/components/ProfileOverview';
 import { generateBillingSpreadsheet } from '@/lib/generateBillingSpreadsheet';
 import { TimeLogDialog } from '@/components/TimeLogDialog';
 import { ExpenseDialog } from '@/components/ExpenseDialog';
@@ -912,6 +913,12 @@ export default function CaseLogApp() {
         openCases={openCases}
         onNewCase={openNewCase}
         onManageAll={() => setActiveView('cases')}
+        onEditCase={(id) => {
+          const c = getCaseById(id);
+          if (c) openEditCase(c);
+        }}
+        onLogTime={quickLogTime}
+        onLogExpense={quickLogExpense}
       />
 
       {/* Recent Activity */}
@@ -1494,11 +1501,12 @@ export default function CaseLogApp() {
 
     return (
       <div className="max-w-md mx-auto px-4 py-6 space-y-6 text-sm overflow-y-auto">
+        <ProfileOverview onEdit={() => setProfileFormOpen(true)} />
+
         {/* SETTINGS */}
         <div>
           <div className="px-4 pb-2 text-xs font-semibold text-muted-foreground tracking-wider">SETTINGS</div>
           <div className="bg-card border rounded-xl overflow-hidden">
-            {renderItem('Profile')}
             {renderItem('Activity Rates')}
             {renderItem('Settings')}
             {renderItem('Siri Shortcuts')}
