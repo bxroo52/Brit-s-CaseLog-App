@@ -7,6 +7,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { toast } from 'sonner';
+import { announce } from '@/lib/utils';
 import {
   Case,
   TimeEntry,
@@ -363,11 +364,14 @@ export const useAppStore = create<AppState>()(
           set({ isSyncing: false, pendingChangesCount: count, lastSync: new Date().toISOString() });
           await get().loadAllData();
           if (result?.processed > 0 || result?.pulled > 0) {
-            toast.success(`Synced ${result.processed || 0} • pulled ${result.pulled || 0}`);
+            const msg = `Synced ${result.processed || 0} • pulled ${result.pulled || 0}`;
+            toast.success(msg);
+            announce(msg, false);
           }
         } catch (e) {
           set({ isSyncing: false });
           toast.error('Sync failed (local data safe)');
+          announce('Sync failed (local data safe)', true);
         }
       },
 
@@ -377,6 +381,7 @@ export const useAppStore = create<AppState>()(
         await clearAllLocalData();
         set({ cases: [], timeEntries: [], expenses: [], pendingChangesCount: 0 });
         toast('Local data wiped.');
+        announce('Local data wiped.', false);
       },
 
       seedDemoData: async () => {

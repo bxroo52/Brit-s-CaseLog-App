@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { toast } from 'sonner';
+import { announce } from '@/lib/utils';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -24,6 +25,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ErrorBoundary caught:', error, errorInfo);
     toast.error('An unexpected error occurred. The app has recovered. Please try again.');
+    announce('An unexpected error occurred. The app has recovered. Please try again.', true);
   }
 
   render() {

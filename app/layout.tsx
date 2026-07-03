@@ -64,6 +64,22 @@ export default function RootLayout({
           </ErrorBoundary>
           <Toaster position="top-center" richColors closeButton />
           <PWARegister />
+
+          {/* ARIA Live Regions for screen reader announcements (visually hidden) */}
+          <div
+            id="live-region-polite"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            className="sr-only"
+          />
+          <div
+            id="live-region-assertive"
+            role="alert"
+            aria-live="assertive"
+            aria-atomic="true"
+            className="sr-only"
+          />
         </ThemeProvider>
       </body>
     </html>

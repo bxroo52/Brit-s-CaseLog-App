@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/stores/useAppStore';
 import { Cloud, CloudOff, RefreshCw, AlertTriangle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { announce } from '@/lib/utils';
 
 export function SyncStatus() {
   const { isOnline, isSyncing, pendingChangesCount, lastSync, syncNow } = useSync();
@@ -30,6 +31,16 @@ export function SyncStatus() {
     Icon = AlertTriangle;
     color = 'text-orange-600';
   }
+
+  // Announce status changes to screen readers (polite) - avoid initial
+  const hasAnnouncedRef = useRef(false);
+  useEffect(() => {
+    if (hasAnnouncedRef.current && label) {
+      announce(label, false);
+    } else {
+      hasAnnouncedRef.current = true;
+    }
+  }, [label]);
 
   // Compute lastSyncText only on client to avoid hydration mismatch (time-based)
   const [lastSyncText, setLastSyncText] = useState('never');

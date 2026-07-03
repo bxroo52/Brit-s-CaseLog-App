@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useAppStore, initializeAppData } from '@/stores/useAppStore';
+import { announce } from '@/lib/utils';
 import { AppHeader, BottomTabBar } from '@/components/AppHeader';
 import { CaseDialog } from '@/components/CaseDialog';
 import { TimeLogDialog } from '@/components/TimeLogDialog';
@@ -85,6 +86,13 @@ export default function CaseLogApp() {
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
   const [defaultExpenseCaseId, setDefaultExpenseCaseId] = useState<string | undefined>();
   const [editingExpense, setEditingExpense] = useState<any>(null);
+
+  // Announce loading state for screen readers
+  useEffect(() => {
+    if (isLoading) {
+      announce('Loading from your device…', false);
+    }
+  }, [isLoading]);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [billingMonth, setBillingMonth] = useState(selectedMonth);
@@ -214,6 +222,7 @@ export default function CaseLogApp() {
   const handleGenerateBilling = async () => {
     if (!profile) return;
 
+    announce('Generating billing package...', false);
     try {
       await generateBilling(billingMonth);
 
@@ -225,15 +234,18 @@ export default function CaseLogApp() {
       const fileName = `CaseLog_Billing_${billingMonth}.pdf`;
       doc.save(fileName);
 
-      toast.success(`Billing package generated and downloaded. The invoice monster has been fed.`, {
+      const successMsg = `Billing package generated and downloaded. ${freshSummary.cases.length} case(s) • ${formatCurrency(freshSummary.grandTotal)}`;
+      toast.success(successMsg, {
         description: `${freshSummary.cases.length} case(s) • ${formatCurrency(freshSummary.grandTotal)}`,
       });
+      announce('Billing package generated and downloaded successfully.', true);
 
       // Refresh
       await loadAllData();
       loadBillingSummary(billingMonth);
     } catch (err) {
       toast.error('Failed to generate billing. Check console.');
+      announce('Failed to generate billing.', true);
       console.error(err);
     }
   };
@@ -834,7 +846,7 @@ export default function CaseLogApp() {
         onOpenSettings={() => setSettingsOpen(true)}
       />
 
-      <main className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 py-8">
+      <main className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 py-8 pb-16">
         {isLoading && <div className="text-sm text-muted-foreground mb-2">Loading from your device…</div>}
 
         {activeView === 'dashboard' && <Dashboard />}
