@@ -10,30 +10,11 @@ export default function ProfileForm({ onSave, onClose }: {
     name: '',
     email: '',
     phone: '',
-    rates: {
-      Contact: '',
-      Court: '',
-      Research: '',
-      'Report Writing': '',
-      'Drive Time': '',
-      'Wait Time': '',
-      Other: '',
-    } as Record<string, string>,
   });
-
-  const handleRateChange = (activity: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      rates: { ...prev.rates, [activity]: value }
-    }));
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const processedRates = Object.fromEntries(
-      Object.entries(formData.rates).map(([k, v]) => [k, v === '' ? 0 : parseFloat(v) || 0])
-    );
-    onSave({ ...formData, rates: processedRates });
+    onSave({ name: formData.name, email: formData.email, phone: formData.phone });
   };
 
   return (
@@ -58,29 +39,6 @@ export default function ProfileForm({ onSave, onClose }: {
           <div>
             <label className="block text-sm font-medium text-gray-400 mb-1.5">Phone</label>
             <input type="tel" value={formData.phone} onChange={e => setFormData(p => ({...p, phone: e.target.value}))} placeholder="(907) 555-0123" className="w-full bg-[#2C2C2E] border border-[#3A3A3C] rounded-2xl px-4 py-3" />
-          </div>
-
-          <div>
-            <h3 className="font-semibold mb-1">Activity Rates</h3>
-            <p className="text-sm text-gray-400 mb-4">Set your hourly rate for each activity type.</p>
-
-            {Object.entries(formData.rates).map(([activity, rate]) => (
-              <div key={activity} className="flex items-center justify-between py-3 border-b border-[#3A3A3C]">
-                <span className="text-white">{activity}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-400">$</span>
-                  <input
-                    type="number"
-                    value={rate}
-                    onChange={(e) => handleRateChange(activity, e.target.value)}
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    className="w-24 bg-[#2C2C2E] border border-[#3A3A3C] rounded-xl px-3 py-2 text-right placeholder-gray-500"
-                  />
-                </div>
-              </div>
-            ))}
           </div>
 
           <div className="pt-6 space-y-3">

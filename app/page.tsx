@@ -394,7 +394,6 @@ export default function CaseLogApp() {
     activityRates,
     rateChangeLogs,
     loadActivityRates,
-    saveActivityRate,
     loadRateChangeLogs,
   } = useAppStore();
 
@@ -719,7 +718,7 @@ export default function CaseLogApp() {
 
   // Handler for ProfileForm (parent handles store persistence)
   const handleProfileSave = async (data: any) => {
-    const { name, email, phone, rates } = data;
+    const { name, email, phone } = data;
 
     await saveProfile({ 
       name: name?.trim() || '', 
@@ -727,12 +726,7 @@ export default function CaseLogApp() {
       phone: phone?.trim() || '' 
     });
 
-    // Persist every activity rate (form provides the full rates map)
-    for (const [activity, rate] of Object.entries(rates || {})) {
-      await saveActivityRate(activity, Number(rate) || 0);
-    }
-
-    toast.success('Profile and rates saved.');
+    toast.success('Profile saved.');
   };
 
   const handleDeleteTime = async (t: TimeEntry) => {
