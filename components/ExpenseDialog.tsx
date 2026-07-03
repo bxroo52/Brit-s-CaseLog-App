@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import CaseSelector from '@/components/CaseSelector';
 import { EXPENSE_TYPES } from '@/lib/constants';
 import { ExpenseFormData, Case } from '@/types';
 import { useAppStore } from '@/stores/useAppStore';
@@ -22,15 +23,29 @@ interface ExpenseDialogProps {
 
 export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: ExpenseDialogProps) {
   const { cases, addExpense, editExpense, getCaseById } = useAppStore();
-  const openCases = cases.filter((c) => c.status === 'Open');
 
   const [form, setForm] = useState<ExpenseFormData>({
-    caseId: defaultCaseId || (openCases[0]?.id ?? ''),
+    caseId: defaultCaseId || '',
     date: format(new Date(), 'yyyy-MM-dd'),
     expenseType: 'Parking',
     description: '',
     amount: 0,
   });
+
+  const openCases = cases.filter((c) => c.status === 'Open');
+
+  // Include the case for the current expense (supports editing closed cases)
+  const selectorCases = (() => {
+    let list = [...openCases];
+    const currentId = existing?.caseId || form.caseId || defaultCaseId;
+    if (currentId) {
+      const currentCase = cases.find((c) => c.id === currentId);
+      if (currentCase && !list.some((c) => c.id === currentCase.id)) {
+        list = [currentCase, ...list];
+      }
+    }
+    return list.length > 0 ? list : openCases;
+  })();
 
   useEffect(() => {
     if (existing) {
@@ -84,19 +99,11 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-y-auto space-y-4">
-          <div>
-            <Label>Case</Label>
-            <Select value={form.caseId} onValueChange={(v) => v && setForm({ ...form, caseId: v })}>
-              <SelectTrigger className="mt-1.5">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {openCases.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{`${c.respondentFirstName} ${c.respondentLastName}`} — {c.caseNumber}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <CaseSelector
+            selectedCaseId={form.caseId}
+            onChange={(caseId) => setForm({ ...form, caseId })}
+            cases={openCases}
+          />
 
           <div className="flex gap-3">
             <div>

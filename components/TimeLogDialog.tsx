@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import CaseSelector from '@/components/CaseSelector';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ACTIVITY_TYPES } from '@/lib/constants';
 import { TimeEntryFormData, Case } from '@/types';
@@ -26,16 +27,29 @@ interface TimeLogDialogProps {
 export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry }: TimeLogDialogProps) {
   const { cases, addTimeEntry, editTimeEntry, getCaseById, getActivityRate, activityRates } = useAppStore();
 
-  const openCases = cases.filter((c) => c.status === 'Open');
-
   const [form, setForm] = useState<TimeEntryFormData>({
-    caseId: defaultCaseId || (openCases[0]?.id ?? ''),
+    caseId: defaultCaseId || '',
     date: format(new Date(), 'yyyy-MM-dd'),
     activityType: 'Contact',
     billableHours: 1,
     description: '',
     isOpenCourt: false,
   });
+
+  const openCases = cases.filter((c) => c.status === 'Open');
+
+  // For selector: prefer open cases, but always include the case being edited (even if now closed)
+  const selectorCases = (() => {
+    let list = [...openCases];
+    const currentId = existingEntry?.caseId || form.caseId || defaultCaseId;
+    if (currentId) {
+      const currentCase = cases.find((c) => c.id === currentId);
+      if (currentCase && !list.some((c) => c.id === currentCase.id)) {
+        list = [currentCase, ...list];
+      }
+    }
+    return list.length > 0 ? list : openCases;
+  })();
 
   const [isTiming, setIsTiming] = useState(false);
   const [timerStart, setTimerStart] = useState<Date | null>(null);
@@ -169,22 +183,14 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-y-auto space-y-4">
-          <div>
-            <Label>Case</Label>
-            <Select value={form.caseId} onValueChange={(v) => v && setForm({ ...form, caseId: v })}>
-              <SelectTrigger className="mt-1.5">
-                <SelectValue placeholder="Choose case" />
-              </SelectTrigger>
-              <SelectContent>
-                {openCases.length === 0 && <div className="p-2 text-sm text-muted-foreground">No open cases. Create one first.</div>}
-                {openCases.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {`${c.respondentFirstName} ${c.respondentLastName}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <CaseSelector
+            selectedCaseId={form.caseId}
+            onChange={(caseId) => setForm({ ...form, caseId })}
+            cases={selectorCases}
+          />
+          {openCases.length === 0 && (
+            <div className="text-xs text-amber-400">No open cases. Create one first using the + New Case button.</div>
+          )}
 
           <div className="flex gap-3">
             <div>
