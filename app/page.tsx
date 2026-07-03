@@ -6,6 +6,8 @@ import { useTheme } from 'next-themes';
 import { announce } from '@/lib/utils';
 import { AppHeader, BottomTabBar } from '@/components/AppHeader';
 import NewCaseForm from '@/components/NewCaseForm';
+import OpenCasesSection from '@/components/OpenCasesSection';
+import ProfileForm from '@/components/ProfileForm';
 import { generateBillingSpreadsheet } from '@/lib/generateBillingSpreadsheet';
 import { TimeLogDialog } from '@/components/TimeLogDialog';
 import { ExpenseDialog } from '@/components/ExpenseDialog';
@@ -418,6 +420,11 @@ export default function CaseLogApp() {
       return;
     }
 
+    if (label === 'Profile') {
+      setProfileFormOpen(true);
+      return;
+    }
+
     switch (label) {
       case 'Activity Rates':
         setActivityRatesOpen(true);
@@ -612,6 +619,7 @@ export default function CaseLogApp() {
     }
   }, [isLoading]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [profileFormOpen, setProfileFormOpen] = useState(false);
 
   const { theme, setTheme } = useTheme();
 
@@ -718,6 +726,24 @@ export default function CaseLogApp() {
         hourlyRate: 0,
       } as any);
     }
+  };
+
+  // Handler for ProfileForm (parent handles store persistence)
+  const handleProfileSave = async (data: any) => {
+    const { name, email, phone, rates } = data;
+
+    await saveProfile({ 
+      name: name?.trim() || '', 
+      email: email?.trim() || '', 
+      phone: phone?.trim() || '' 
+    });
+
+    // Persist every activity rate (form provides the full rates map)
+    for (const [activity, rate] of Object.entries(rates || {})) {
+      await saveActivityRate(activity, Number(rate) || 0);
+    }
+
+    toast.success('Profile and rates saved.');
   };
 
   const handleDeleteTime = async (t: TimeEntry) => {
@@ -881,58 +907,12 @@ export default function CaseLogApp() {
         </div>
       </div>
 
-      {/* Quick cases */}
-      <Card>
-        <CardHeader className="pb-3 flex flex-row items-center justify-between">
-          <CardTitle className="text-lg">Open Cases</CardTitle>
-          <Button variant="ghost" className="h-8 text-xs" onClick={() => setActiveView('cases')}>Manage all →</Button>
-        </CardHeader>
-        <CardContent>
-          {openCases.length === 0 ? (
-            <div className="empty-state py-8">
-              <Button onClick={openNewCase} className="gap-2"><Plus className="h-4 w-4" /> New Case</Button>
-            </div>
-          ) : (
-            <>
-              {/* Prominent quick search for open cases on Dashboard */}
-              <Input
-                placeholder="Search open cases by name or number..."
-                className="w-full mb-3 text-base"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              {filteredOpenCases.length === 0 ? (
-                <div className="text-center py-4 text-sm text-muted-foreground border rounded-lg">
-                  No open cases match your search. <button onClick={() => setSearchTerm('')} className="underline">Clear</button>
-                </div>
-              ) : (
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {filteredOpenCases.slice(0, 6).map((c) => (
-                <div
-                  key={c.id}
-                  className="log-card flex justify-between gap-3 cursor-pointer hover:bg-muted/50"
-                  onClick={() => openEditCase(c)}
-                >
-                  <div>
-                    <div className="font-medium">{`${c.respondentFirstName} ${c.respondentLastName}`}</div>
-                    <div className="text-sm text-muted-foreground">{c.caseNumber} • {c.assignmentType}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">${c.hourlyRate ?? 0}/hr</div>
-                  </div>
-                  <div className="flex flex-col items-end justify-between text-right text-xs">
-                    <Badge variant="outline" className="mb-1">{c.status}</Badge>
-                    <div className="flex gap-1 mt-auto">
-                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); quickLogTime(c.id); }} className="h-8 px-2 text-xs">+ Time</Button>
-                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); quickLogExpense(c.id); }} className="h-8 px-2 text-xs">+ Exp</Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+      {/* Open Cases section */}
+      <OpenCasesSection
+        openCases={openCases}
+        onNewCase={openNewCase}
+        onManageAll={() => setActiveView('cases')}
+      />
 
       {/* Recent Activity */}
       <div className="grid md:grid-cols-2 gap-4">
@@ -1518,7 +1498,9 @@ export default function CaseLogApp() {
         <div>
           <div className="px-4 pb-2 text-xs font-semibold text-muted-foreground tracking-wider">SETTINGS</div>
           <div className="bg-card border rounded-xl overflow-hidden">
+            {renderItem('Profile')}
             {renderItem('Activity Rates')}
+            {renderItem('Settings')}
             {renderItem('Siri Shortcuts')}
             {renderItem('Integrations')}
             {renderItem('Dark mode', darkModeLabel)}
@@ -1612,6 +1594,19 @@ export default function CaseLogApp() {
           onSubmit={handleCaseFormSubmit}
           onClose={() => { setCaseDialogOpen(false); setEditingCase(undefined); }} 
           existingCase={editingCase}
+          onDelete={() => {
+            if (editingCase) {
+              // Delete action (confirm already handled in the button UI)
+              removeCase(editingCase.id).then(() => {
+                toast('Case and associated logs deleted. Poof.');
+                setCaseDialogOpen(false);
+                setEditingCase(undefined);
+              }).catch((err) => {
+                toast.error('Failed to delete case. Please try again.');
+                console.error(err);
+              });
+            }
+          }}
         />
       )}
       <TimeLogDialog
@@ -1627,6 +1622,13 @@ export default function CaseLogApp() {
         existing={editingExpense}
       />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+
+      {profileFormOpen && (
+        <ProfileForm 
+          onSave={handleProfileSave} 
+          onClose={() => setProfileFormOpen(false)} 
+        />
+      )}
 
       {/* Account modal / info screens */}
       <Dialog open={accountModalOpen} onOpenChange={setAccountModalOpen}>

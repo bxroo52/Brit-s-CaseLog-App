@@ -7,9 +7,10 @@ interface NewCaseFormProps {
   onSubmit: (data: NewCaseFormData) => Promise<void>;
   onClose: () => void;
   existingCase?: any;
+  onDelete?: () => void;
 }
 
-export default function NewCaseForm({ onSubmit, onClose, existingCase }: NewCaseFormProps) {
+export default function NewCaseForm({ onSubmit, onClose, existingCase, onDelete }: NewCaseFormProps) {
   const [formData, setFormData] = useState<NewCaseFormData>({
     respondentFirstName: existingCase?.respondentFirstName || '',
     respondentLastName: existingCase?.respondentLastName || '',
@@ -158,6 +159,23 @@ export default function NewCaseForm({ onSubmit, onClose, existingCase }: NewCase
           >
             {isSubmitting ? (existingCase ? 'Updating...' : 'Creating Case...') : (existingCase ? 'Update Case' : 'Create Case')}
           </button>
+
+          {/* Delete Button + Confirmation - only for editing */}
+          {existingCase && (
+            <div className="pt-6">
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm("Are you absolutely sure you want to delete this case? This action cannot be undone.")) {
+                    onDelete?.();
+                  }
+                }}
+                className="w-full bg-red-600/90 hover:bg-red-600 active:bg-red-700 text-white font-semibold py-4 rounded-2xl"
+              >
+                Delete Case
+              </button>
+            </div>
+          )}
         </form>
       </div>
     </div>
