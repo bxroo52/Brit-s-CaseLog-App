@@ -83,7 +83,7 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
           <DialogTitle>{existing ? 'Edit Expense' : 'Log Expense'}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-4">
           <div>
             <Label>Case</Label>
             <Select value={form.caseId} onValueChange={(v) => v && setForm({ ...form, caseId: v })}>
@@ -115,12 +115,12 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
                 <div className="mt-2 space-y-2 text-xs">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <Label className="text-[10px]">Miles</Label>
+                      <Label className="text-xs">Miles</Label>
                       <Input
                         type="text"
                         inputMode="decimal"
                         placeholder="14"
-                        className="h-8 text-xs"
+                        className="h-9 text-sm"
                         onChange={(e) => {
                           const miles = parseFloat(e.target.value) || 0;
                           const rate = parseFloat((document.getElementById('mileage-rate') as HTMLInputElement)?.value) || 0.67;
@@ -130,14 +130,14 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
                       />
                     </div>
                     <div>
-                      <Label className="text-[10px]">Rate $/mi</Label>
+                      <Label className="text-xs">Rate $/mi</Label>
                       <Input
                         id="mileage-rate"
                         type="text"
                         inputMode="decimal"
                         defaultValue="0.67"
                         placeholder="0.67"
-                        className="h-8 text-xs"
+                        className="h-9 text-sm"
                         onChange={(e) => {
                           const milesEl = document.querySelector('input[placeholder="14"]') as HTMLInputElement;
                           const miles = parseFloat(milesEl?.value) || 0;
@@ -147,7 +147,7 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
                       />
                     </div>
                   </div>
-                  <p className="text-[10px] text-muted-foreground">Auto-fills amount. Update description with actual miles + rate used.</p>
+                  <p className="text-xs text-muted-foreground">Auto-fills amount. Update description with actual miles + rate used.</p>
                 </div>
               )}
             </div>
@@ -179,13 +179,13 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
 
           <div>
             <Label>Description / Receipt Note</Label>
-            <div className="flex flex-wrap gap-1 mb-1.5">
+            <div className="flex flex-wrap gap-1.5 mb-1.5">
               {['Parking at courthouse', 'Certified mail', 'Copies for court', 'Postage', 'Round trip mileage'].map((phrase) => (
                 <button
                   key={phrase}
                   type="button"
                   onClick={() => setForm({ ...form, description: form.description ? form.description + ' ' + phrase : phrase })}
-                  className="text-[10px] px-2 py-0.5 rounded-full bg-muted hover:bg-muted/80 border"
+                  className="text-sm px-3 py-1 rounded-full bg-muted hover:bg-muted/80 border active:bg-muted/60"
                 >
                   {phrase}
                 </button>

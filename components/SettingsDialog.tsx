@@ -189,7 +189,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
               </p>
             </div>
             <Button
-              size="sm"
+              className="h-10 w-full"
               variant="default"
               onClick={() => {
                 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
@@ -209,7 +209,6 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                   );
                 }
               }}
-              className="w-full"
             >
               📱 Install App on Home Screen
             </Button>
@@ -224,9 +223,9 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
               <Label className="font-medium">Backup &amp; Restore</Label>
               <p className="text-xs text-muted-foreground">Export or import all your local data as JSON.</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Button
-                size="sm"
+                className="h-10 flex-1"
                 variant="outline"
                 onClick={async () => {
                   try {
@@ -260,12 +259,11 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                     console.error(err);
                   }
                 }}
-                className="flex-1"
               >
                 Export All Data
               </Button>
               <Button
-                size="sm"
+                className="h-10 flex-1"
                 variant="outline"
                 onClick={() => {
                   const input = document.createElement('input');
@@ -310,7 +308,6 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                   };
                   input.click();
                 }}
-                className="flex-1"
               >
                 Import Backup
               </Button>
@@ -372,17 +369,17 @@ function SyncControls({ onClose }: { onClose: () => void }) {
   return (
     <div className="space-y-2 text-sm">
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" onClick={handleSyncNow} disabled={isSyncing || !isOnline}>
+        <Button className="h-9" variant="outline" onClick={handleSyncNow} disabled={isSyncing || !isOnline}>
           {isSyncing ? 'Syncing…' : 'Sync Now'}
         </Button>
-        <Button size="sm" variant="outline" onClick={handleSimulateOffline}>
+        <Button className="h-9" variant="outline" onClick={handleSimulateOffline}>
           Test Offline Mode
         </Button>
-        <Button size="sm" variant="destructive" onClick={handleClear}>
+        <Button className="h-9" variant="destructive" onClick={handleClear}>
           Clear All Local Data
         </Button>
         <Button
-          size="sm"
+          className="h-9"
           variant="outline"
           onClick={async () => {
             if (!confirm('Clear all pending sync items? This cannot be undone.')) return;

@@ -103,7 +103,7 @@ export function CaseDialog({ open, onOpenChange, existingCase }: CaseDialogProps
           <DialogTitle>{isEditing ? 'Edit Case' : 'New Case'}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-4 py-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="respondent">Respondent Name</Label>

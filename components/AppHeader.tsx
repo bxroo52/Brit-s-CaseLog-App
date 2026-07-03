@@ -2,6 +2,7 @@
 
 import { useAppStore } from '@/stores/useAppStore';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import {
   FileText,
   Clock,
@@ -9,10 +10,8 @@ import {
   Users,
   Calendar,
   Settings,
-  Download,
 } from 'lucide-react';
 import { formatMonth } from '@/lib/format';
-import { SyncStatus } from './SyncStatus';
 
 interface NavItem {
   label: string;
@@ -34,8 +33,8 @@ interface AppHeaderProps {
   onOpenSettings: () => void;
 }
 
-export function AppHeader({ activeView, onViewChange, onOpenSettings }: AppHeaderProps) {
-  const { selectedMonth, profile } = useAppStore();
+export function AppHeader({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const { profile } = useAppStore();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -50,44 +49,43 @@ export function AppHeader({ activeView, onViewChange, onOpenSettings }: AppHeade
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 text-sm">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeView === item.view;
-            return (
-              <Button
-                key={item.view}
-                variant={isActive ? 'default' : 'ghost'}
-                size="sm"
-                className="gap-2 px-3"
-                onClick={() => onViewChange(item.view)}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="hidden md:inline">{item.label}</span>
-              </Button>
-            );
-          })}
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="hidden md:block">
-            <SyncStatus />
-          </div>
-
-          <div className="hidden sm:block text-right text-xs leading-tight mr-1">
-            <div className="font-medium">{profile?.name || 'Court Visitor'}</div>
-            <div className="text-muted-foreground tabular-nums">{formatMonth(selectedMonth)}</div>
-          </div>
-
-          <Button variant="outline" size="sm" onClick={onOpenSettings} className="gap-2">
-            <Settings className="h-4 w-4" />
-            <span className="hidden sm:inline">Settings</span>
-          </Button>
-        </div>
+        <Button variant="outline" className="gap-2 h-10 md:h-9" onClick={onOpenSettings}>
+          <Settings className="h-4 w-4" />
+          <span className="hidden sm:inline">Settings</span>
+        </Button>
       </div>
 
       {/* Tiny humor bar */}
       <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
     </header>
+  );
+}
+
+export function BottomTabBar({ activeView, onViewChange }: Pick<AppHeaderProps, 'activeView' | 'onViewChange'>) {
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="mx-auto max-w-7xl flex h-16 items-center">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = activeView === item.view;
+          return (
+            <button
+              key={item.view}
+              onClick={() => onViewChange(item.view)}
+              className={cn(
+                "flex flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1 text-[10px] font-medium transition-colors active:opacity-80 touch-manipulation relative",
+                isActive
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {isActive && <div className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-full bg-primary" />}
+              <Icon className={cn("h-5 w-5", isActive && "text-primary")} />
+              <span className={cn("leading-none", isActive && "font-semibold")}>{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
   );
 }

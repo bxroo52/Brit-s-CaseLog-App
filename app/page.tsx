@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useAppStore, initializeAppData } from '@/stores/useAppStore';
-import { AppHeader } from '@/components/AppHeader';
+import { AppHeader, BottomTabBar } from '@/components/AppHeader';
 import { CaseDialog } from '@/components/CaseDialog';
 import { TimeLogDialog } from '@/components/TimeLogDialog';
 import { ExpenseDialog } from '@/components/ExpenseDialog';
@@ -328,7 +328,7 @@ export default function CaseLogApp() {
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <CardTitle className="text-lg">Open Cases</CardTitle>
-          <Button size="sm" variant="ghost" onClick={() => setActiveView('cases')}>Manage all →</Button>
+          <Button variant="ghost" className="h-8 text-xs" onClick={() => setActiveView('cases')}>Manage all →</Button>
         </CardHeader>
         <CardContent>
           {openCases.length === 0 ? (
@@ -351,8 +351,8 @@ export default function CaseLogApp() {
                   <div className="flex flex-col items-end justify-between text-right text-xs">
                     <Badge variant="outline" className="mb-1">{c.status}</Badge>
                     <div className="flex gap-1 mt-auto">
-                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); quickLogTime(c.id); }} className="h-7 px-2">+ Time</Button>
-                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); quickLogExpense(c.id); }} className="h-7 px-2">+ Exp</Button>
+                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); quickLogTime(c.id); }} className="h-8 px-2 text-xs">+ Time</Button>
+                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); quickLogExpense(c.id); }} className="h-8 px-2 text-xs">+ Exp</Button>
                     </div>
                   </div>
                 </div>
@@ -467,11 +467,11 @@ export default function CaseLogApp() {
             </div>
             <div className="mt-1 text-xs font-mono text-right">{formatCurrency(c.hourlyRate)}</div>
 
-            <div className="mt-2 flex gap-1 flex-wrap text-xs">
-              <Button size="sm" variant="ghost" onClick={() => quickLogTime(c.id)} className="h-7 px-2 text-[10px]">+ Time</Button>
-              <Button size="sm" variant="ghost" onClick={() => quickLogExpense(c.id)} className="h-7 px-2 text-[10px]">+ Exp</Button>
-              <Button size="sm" variant="ghost" onClick={() => openEditCase(c)} className="h-7 px-1"><Edit2 className="h-3 w-3" /></Button>
-              <Button size="sm" variant="ghost" className="text-destructive h-7 px-1" onClick={() => handleDeleteCase(c)}><Trash2 className="h-3 w-3" /></Button>
+            <div className="mt-2 flex gap-1 flex-wrap">
+              <Button size="sm" variant="ghost" onClick={() => quickLogTime(c.id)} className="h-8 px-2 text-xs">+ Time</Button>
+              <Button size="sm" variant="ghost" onClick={() => quickLogExpense(c.id)} className="h-8 px-2 text-xs">+ Exp</Button>
+              <Button size="sm" variant="ghost" onClick={() => openEditCase(c)} className="h-8 px-1.5"><Edit2 className="h-3.5 w-3.5" /></Button>
+              <Button size="sm" variant="ghost" className="text-destructive h-8 px-1.5" onClick={() => handleDeleteCase(c)}><Trash2 className="h-3.5 w-3.5" /></Button>
             </div>
           </div>
         ))}
@@ -544,7 +544,7 @@ export default function CaseLogApp() {
         <div><h2 className="section-title">Time Entries</h2><p className="text-sm text-muted-foreground">All time ever logged. Edit or delete with care.</p></div>
         <Button onClick={() => quickLogTime()}><Plus className="mr-2 h-4 w-4" /> New Time Entry</Button>
       </div>
-      <div className="rounded-xl border">
+      <div className="rounded-xl border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -592,7 +592,7 @@ export default function CaseLogApp() {
         <div><h2 className="section-title">Expenses</h2></div>
         <Button onClick={() => quickLogExpense()}><Plus className="mr-2 h-4 w-4" /> Log Expense</Button>
       </div>
-      <div className="rounded-xl border">
+      <div className="rounded-xl border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -817,7 +817,7 @@ export default function CaseLogApp() {
               size="lg" 
               className="w-full sm:w-auto gap-2 px-6 h-11 text-base"
             >
-              <Download className="h-4 w-4" /> GENERATE &amp; DOWNLOAD FULL PACKAGE
+              <Download className="h-4 w-4" /> <span className="hidden sm:inline">GENERATE &amp; DOWNLOAD FULL PACKAGE</span><span className="sm:hidden">Generate Package</span>
             </Button>
           </div>
 
@@ -831,8 +831,6 @@ export default function CaseLogApp() {
   return (
     <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
       <AppHeader
-        activeView={activeView}
-        onViewChange={handleViewChange}
         onOpenSettings={() => setSettingsOpen(true)}
       />
 
@@ -845,6 +843,8 @@ export default function CaseLogApp() {
         {activeView === 'expenses' && <ExpensesView />}
         {activeView === 'billing' && <BillingView />}
       </main>
+
+      <BottomTabBar activeView={activeView} onViewChange={handleViewChange} />
 
       {/* All the dialogs */}
       <CaseDialog
@@ -867,7 +867,7 @@ export default function CaseLogApp() {
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
 
       {/* Footer personality */}
-      <footer className="border-t py-4 text-center text-xs text-muted-foreground">
+      <footer className="border-t py-4 text-center text-xs text-muted-foreground mb-16 md:mb-0">
         CaseLog • Offline-first. Your data never leaves this device. • Capture once. Bill correctly.
       </footer>
     </div>

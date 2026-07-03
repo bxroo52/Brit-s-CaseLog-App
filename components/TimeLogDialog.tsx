@@ -152,7 +152,7 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
           <DialogTitle>{existingEntry ? 'Edit Time Entry' : 'Log Time'}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-4">
           <div>
             <Label>Case</Label>
             <Select value={form.caseId} onValueChange={(v) => v && setForm({ ...form, caseId: v })}>
@@ -201,7 +201,7 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
                 variant={isTiming ? 'destructive' : 'outline'}
                 size="sm"
                 onClick={toggleTimer}
-                className="gap-1.5 h-7"
+                className="gap-1.5 h-8 text-xs"
               >
                 {isTiming ? <Square className="h-3 w-3" /> : <Play className="h-3 w-3" />}
                 {isTiming ? 'Stop Timer' : 'Start Timer'}
