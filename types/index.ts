@@ -2,31 +2,39 @@
  * CaseLog Data Models (aligned to provided schema)
  */
 
-export type AssignmentType =
-  | 'Initial'
-  | 'Review'
-  | 'Three-Year Review'
-  | 'Medication';
-
-export type CaseStatus = 'Open' | 'Closed';
+export type AssignmentType = 'Initial' | 'Follow-up' | 'Review' | 'Other';
+export type CaseStatus = 'Open' | 'Closed' | 'On Hold' | 'Completed';
 
 export interface Case {
   id: string;
   userId?: string;
-  respondentName: string;
+  respondentFirstName: string;
+  respondentLastName: string;
   caseNumber: string;
   assignmentType: AssignmentType;
   status: CaseStatus;
-  hourlyRate: number; // legacy per-case rate (activity rates now preferred for time)
   firstTimeBilling: boolean;
-  caseNotes?: string;
-  appointmentDate?: string; // for official forms (Date of Appointment)
-  appointingJudge?: string; // for official forms
-  natureOfCase?: string; // Description of Nature of Case
-  updatedAt: string;      // ISO string
+  notes?: string;
+  createdAt: string; // keep as string for consistency with Dexie/ISO
+  hourlyRate?: number; // legacy, optional now
+  caseNotes?: string; // alias for notes
+  appointmentDate?: string;
+  appointingJudge?: string;
+  natureOfCase?: string;
+  updatedAt: string;
   isDeleted?: boolean;
   synced?: boolean;
-  createdAt: string;
+}
+
+// For form handling
+export interface NewCaseFormData {
+  respondentFirstName: string;
+  respondentLastName: string;
+  caseNumber: string;
+  assignmentType: AssignmentType;
+  status: CaseStatus;
+  firstTimeBilling: boolean;
+  notes: string;
 }
 
 export type ActivityType =
@@ -136,7 +144,7 @@ export type TimeEntryFormData = Omit<
 
 export type ExpenseFormData = Omit<Expense, 'id' | 'updatedAt' | 'synced' | 'isDeleted'>;
 
-export type CaseFormData = Omit<Case, 'id' | 'createdAt' | 'updatedAt' | 'synced' | 'isDeleted'>;
+export type CaseFormData = NewCaseFormData & { hourlyRate?: number; }; // adapt for store
 
 export interface ActivityRate {
   id: string;

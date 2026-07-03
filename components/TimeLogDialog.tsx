@@ -179,7 +179,7 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
                 {openCases.length === 0 && <div className="p-2 text-sm text-muted-foreground">No open cases. Create one first.</div>}
                 {openCases.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.respondentName}
+                    {`${c.respondentFirstName} ${c.respondentLastName}`}
                   </SelectItem>
                 ))}
               </SelectContent>

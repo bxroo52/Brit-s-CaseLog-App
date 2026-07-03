@@ -92,7 +92,7 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
               </SelectTrigger>
               <SelectContent>
                 {openCases.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.respondentName} — {c.caseNumber}</SelectItem>
+                  <SelectItem key={c.id} value={c.id}>{`${c.respondentFirstName} ${c.respondentLastName}`} — {c.caseNumber}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

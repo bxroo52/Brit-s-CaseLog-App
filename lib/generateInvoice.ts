@@ -138,7 +138,7 @@ export function generateCaseInvoicePDF(opts: GenerateOptions): jsPDF {
   doc.text('CASE INFORMATION', rightX, rightY);
   rightY += 6;
   doc.setFont('helvetica', 'normal');
-  doc.text(`Respondent: ${caseRecord.respondentName}`, rightX, rightY);
+  doc.text(`Respondent: ${caseRecord.respondentFirstName} ${caseRecord.respondentLastName}`, rightX, rightY);
   rightY += 5;
   doc.text(`Case No: ${caseRecord.caseNumber}`, rightX, rightY);
   rightY += 5;
@@ -152,7 +152,7 @@ export function generateCaseInvoicePDF(opts: GenerateOptions): jsPDF {
     doc.text(`Judge: ${caseRecord.appointingJudge}`, rightX, rightY);
     rightY += 5;
   }
-  doc.text(`Rate: ${formatCurrency(caseRecord.hourlyRate)}/hr`, rightX, rightY);
+  doc.text(`Rate: ${formatCurrency(caseRecord.hourlyRate ?? 0)}/hr`, rightX, rightY);
 
   // Divider
   y = Math.max(y, rightY) + 9;
@@ -385,7 +385,8 @@ export function generateFullBillingPackagePDF(
     // Reuse the case invoice logic but without full header every time
     const caseRecord: Case = {
       id: caseSummary.caseId,
-      respondentName: caseSummary.respondentName,
+      respondentFirstName: caseSummary.respondentFirstName || '',
+      respondentLastName: caseSummary.respondentLastName || '',
       caseNumber: caseSummary.caseNumber,
       assignmentType: caseSummary.assignmentType,
       status: 'Open',
@@ -398,7 +399,7 @@ export function generateFullBillingPackagePDF(
       updatedAt: '',
       synced: true,
       isDeleted: false,
-    };
+    } as any;
 
     // Reuse generator
     const subDoc = generateCaseInvoicePDF({
@@ -428,7 +429,7 @@ export function generateFullBillingPackagePDF(
 
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text(`CASE STATEMENT — ${caseSummary.respondentName}`, margin, caseY);
+    doc.text(`CASE STATEMENT — ${caseSummary.respondentFirstName || ''} ${caseSummary.respondentLastName || ''}`, margin, caseY);
     caseY += 6;
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');

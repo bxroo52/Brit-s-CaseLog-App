@@ -5,7 +5,8 @@ import { useAppStore, initializeAppData } from '@/stores/useAppStore';
 import { useTheme } from 'next-themes';
 import { announce } from '@/lib/utils';
 import { AppHeader, BottomTabBar } from '@/components/AppHeader';
-import { CaseDialog } from '@/components/CaseDialog';
+import NewCaseForm from '@/components/NewCaseForm';
+import { generateBillingSpreadsheet } from '@/lib/generateBillingSpreadsheet';
 import { TimeLogDialog } from '@/components/TimeLogDialog';
 import { ExpenseDialog } from '@/components/ExpenseDialog';
 import { SettingsDialog } from '@/components/SettingsDialog';
@@ -54,7 +55,7 @@ import { generateCaseInvoicePDF, generateFullBillingPackagePDF } from '@/lib/gen
 import { ASSIGNMENT_TYPES } from '@/lib/constants';
 import { buildMonthlyBillingSummary } from '@/lib/db';
 import { isSupabaseConfigured } from '@/lib/supabase';
-import { Case, TimeEntry, Expense, UserProfile } from '@/types';
+import { Case, TimeEntry, Expense, UserProfile, NewCaseFormData } from '@/types';
 
 type View = 'dashboard' | 'cases' | 'time' | 'expenses' | 'billing' | 'account';
 
@@ -373,6 +374,7 @@ export default function CaseLogApp() {
     removeCase,
     removeTimeEntry,
     removeExpense,
+    addCase,
     editCase,
     pendingChangesCount,
     saveProfile,
@@ -703,6 +705,21 @@ export default function CaseLogApp() {
     }
   };
 
+  // Handler for NewCaseForm (matches the onSubmit pattern from spec)
+  const handleCaseFormSubmit = async (formData: NewCaseFormData) => {
+    if (editingCase) {
+      await editCase(editingCase.id, {
+        ...formData,
+        hourlyRate: editingCase.hourlyRate || 0,
+      } as any);
+    } else {
+      await addCase({
+        ...formData,
+        hourlyRate: 0,
+      } as any);
+    }
+  };
+
   const handleDeleteTime = async (t: TimeEntry) => {
     if (t.billingStatus === 'Billed') {
       if (!confirm('This entry is already marked Billed. Delete anyway?')) return;
@@ -794,7 +811,7 @@ export default function CaseLogApp() {
       isFirstTime: caseRecord.firstTimeBilling,
     });
 
-    const safeName = cs.respondentName.replace(/\s+/g, '_');
+    const safeName = `${cs.respondentFirstName || ''}_${cs.respondentLastName || ''}`.replace(/\s+/g, '_');
     doc.save(`Invoice_${billingMonth}_${safeName}.pdf`);
     toast('Individual invoice downloaded.');
   };
@@ -808,11 +825,11 @@ export default function CaseLogApp() {
 
     monthEntries.forEach((t) => {
       const c = getCaseById(t.caseId);
-      csv += `Time,${t.date},${c?.caseNumber || ''},${c?.respondentName || ''},${t.activityType},${t.billableHoursRounded},${t.activityRate ?? t.hourlyRate},${t.totalAmount ?? t.amount},${t.billingStatus},"${t.description.replace(/"/g, '""')}"\n`;
+      csv += `Time,${t.date},${c?.caseNumber || ''},${`${c?.respondentFirstName} ${c?.respondentLastName}` || ''},${t.activityType},${t.billableHoursRounded},${t.activityRate ?? t.hourlyRate},${t.totalAmount ?? t.amount},${t.billingStatus},"${t.description.replace(/"/g, '""')}"\n`;
     });
     monthExp.forEach((e) => {
       const c = getCaseById(e.caseId);
-      csv += `Expense,${e.date},${c?.caseNumber || ''},${c?.respondentName || ''},${e.expenseType},,${e.amount},,,"${e.description.replace(/"/g, '""')}"\n`;
+      csv += `Expense,${e.date},${c?.caseNumber || ''},${`${c?.respondentFirstName} ${c?.respondentLastName}` || ''},${e.expenseType},,${e.amount},,,"${e.description.replace(/"/g, '""')}"\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -897,9 +914,9 @@ export default function CaseLogApp() {
                   onClick={() => openEditCase(c)}
                 >
                   <div>
-                    <div className="font-medium">{c.respondentName}</div>
+                    <div className="font-medium">{`${c.respondentFirstName} ${c.respondentLastName}`}</div>
                     <div className="text-sm text-muted-foreground">{c.caseNumber} • {c.assignmentType}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">${c.hourlyRate}/hr</div>
+                    <div className="mt-1 text-xs text-muted-foreground">${c.hourlyRate ?? 0}/hr</div>
                   </div>
                   <div className="flex flex-col items-end justify-between text-right text-xs">
                     <Badge variant="outline" className="mb-1">{c.status}</Badge>
@@ -930,7 +947,7 @@ export default function CaseLogApp() {
                 return (
                   <div key={t.id} className="flex justify-between py-2 text-sm border-b last:border-0">
                     <div>
-                      <span className="font-medium">{c?.respondentName}</span> — {t.activityType}
+                      <span className="font-medium">{`${c?.respondentFirstName} ${c?.respondentLastName}`}</span> — {t.activityType}
                       <div className="text-xs text-muted-foreground">{formatDate(t.date)}</div>
                     </div>
                     <div className="text-right tabular-nums">{formatHours(t.billableHoursRounded)}h • {formatCurrency(t.amount)}</div>
@@ -948,7 +965,7 @@ export default function CaseLogApp() {
                 const c = getCaseById(e.caseId);
                 return (
                   <div key={e.id} className="flex justify-between py-2 text-sm border-b last:border-0">
-                    <div>{c?.respondentName} — {e.expenseType}</div>
+                    <div>{`${c?.respondentFirstName} ${c?.respondentLastName}`} — {e.expenseType}</div>
                     <div className="tabular-nums">{formatCurrency(e.amount)}</div>
                   </div>
                 );
@@ -968,7 +985,12 @@ export default function CaseLogApp() {
           <h2 className="section-title">Cases</h2>
           <p className="text-muted-foreground text-sm">Manage who you’re billing. Close them when done.</p>
         </div>
-        <Button onClick={openNewCase} className="gap-2"><Plus /> New Case</Button>
+        <div className="flex gap-2">
+          <Button onClick={openNewCase} className="gap-2"><Plus /> New Case</Button>
+          <Button onClick={() => generateBillingSpreadsheet(filteredCases)} variant="outline" className="gap-2">
+            Export XLSX (by Last Name)
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -987,6 +1009,8 @@ export default function CaseLogApp() {
           <SelectContent>
             <SelectItem value="All">All</SelectItem>
             <SelectItem value="Open">Open</SelectItem>
+            <SelectItem value="On Hold">On Hold</SelectItem>
+            <SelectItem value="Completed">Completed</SelectItem>
             <SelectItem value="Closed">Closed</SelectItem>
           </SelectContent>
         </Select>
@@ -1085,7 +1109,7 @@ export default function CaseLogApp() {
           <div key={c.id} className="border rounded-xl p-3 bg-card">
             <div className="flex justify-between items-start gap-2">
               <div>
-                <div className="font-medium">{c.respondentName}</div>
+                <div className="font-medium">{`${c.respondentFirstName} ${c.respondentLastName}`}</div>
                 <div className="text-xs font-mono text-muted-foreground">{c.caseNumber}</div>
                 <div className="text-xs mt-0.5">{c.assignmentType}</div>
               </div>
@@ -1106,7 +1130,7 @@ export default function CaseLogApp() {
                 {c.firstTimeBilling && <Badge variant="outline" className="ml-1 text-[10px]">First</Badge>}
               </div>
             </div>
-            <div className="mt-1 text-xs font-mono text-right">{formatCurrency(c.hourlyRate)}</div>
+            <div className="mt-1 text-xs font-mono text-right">{formatCurrency(c.hourlyRate ?? 0)}</div>
 
             <div className="mt-2 flex gap-1 flex-wrap">
               <Button size="sm" variant="ghost" onClick={() => quickLogTime(c.id)} className="h-8 px-2 text-xs">+ Time</Button>
@@ -1140,10 +1164,10 @@ export default function CaseLogApp() {
               const pending = caseTime.filter((t) => t.billingStatus === 'Pending').length;
               return (
                 <TableRow key={c.id}>
-                  <TableCell className="font-medium">{c.respondentName}</TableCell>
+                  <TableCell className="font-medium">{`${c.respondentFirstName} ${c.respondentLastName}`}</TableCell>
                   <TableCell className="font-mono text-sm">{c.caseNumber}</TableCell>
                   <TableCell>{c.assignmentType}</TableCell>
-                  <TableCell className="text-right font-mono">{formatCurrency(c.hourlyRate)}</TableCell>
+                  <TableCell className="text-right font-mono">{formatCurrency(c.hourlyRate ?? 0)}</TableCell>
                   <TableCell>
                     <button
                       onClick={() => handleToggleStatus(c)}
@@ -1205,7 +1229,7 @@ export default function CaseLogApp() {
               return (
                 <TableRow key={t.id}>
                   <TableCell>{formatDate(t.date, 'MMM dd')}</TableCell>
-                  <TableCell className="font-medium text-sm">{c?.respondentName}<div className="text-[10px] text-muted-foreground">{c?.caseNumber}</div></TableCell>
+                  <TableCell className="font-medium text-sm">{`${c?.respondentFirstName} ${c?.respondentLastName}`}<div className="text-[10px] text-muted-foreground">{c?.caseNumber}</div></TableCell>
                   <TableCell>{t.activityType}</TableCell>
                   <TableCell className="text-right font-mono">{formatHours(t.billableHoursRounded)}</TableCell>
                   <TableCell className="text-right font-mono">{formatCurrency(t.amount)}</TableCell>
@@ -1252,7 +1276,7 @@ export default function CaseLogApp() {
               return (
                 <TableRow key={e.id}>
                   <TableCell>{formatDate(e.date, 'MMM dd')}</TableCell>
-                  <TableCell>{c?.respondentName}</TableCell>
+                  <TableCell>{`${c?.respondentFirstName} ${c?.respondentLastName}`}</TableCell>
                   <TableCell>{e.expenseType}</TableCell>
                   <TableCell className="text-sm max-w-[280px] truncate">{e.description}</TableCell>
                   <TableCell className="text-right font-mono">{formatCurrency(e.amount)}</TableCell>
@@ -1370,7 +1394,7 @@ export default function CaseLogApp() {
                 <div key={cs.caseId} className="rounded-lg border p-3 space-y-2">
                   <div className="flex justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="font-medium text-sm leading-tight">{cs.respondentName}</div>
+                      <div className="font-medium text-sm leading-tight">{`${cs.respondentFirstName || ''} ${cs.respondentLastName || ''}`}</div>
                       <div className="text-[11px] text-muted-foreground truncate">{cs.caseNumber} • {cs.assignmentType}</div>
                     </div>
                     <div className="text-right shrink-0">
@@ -1425,7 +1449,7 @@ export default function CaseLogApp() {
                   {currentSummary.cases.map((cs: any) => (
                     <TableRow key={cs.caseId}>
                       <TableCell>
-                        <div className="font-medium">{cs.respondentName}</div>
+                        <div className="font-medium">{`${cs.respondentFirstName || ''} ${cs.respondentLastName || ''}`}</div>
                         <div className="text-xs text-muted-foreground">{cs.caseNumber} • {cs.assignmentType}</div>
                       </TableCell>
                       <TableCell className="font-mono">{formatHours(cs.timeTotal)}</TableCell>
@@ -1583,11 +1607,13 @@ export default function CaseLogApp() {
       <BottomTabBar activeView={activeView} onViewChange={handleViewChange} />
 
       {/* All the dialogs */}
-      <CaseDialog
-        open={caseDialogOpen}
-        onOpenChange={(o) => { setCaseDialogOpen(o); if (!o) setEditingCase(undefined); }}
-        existingCase={editingCase}
-      />
+      {caseDialogOpen && (
+        <NewCaseForm 
+          onSubmit={handleCaseFormSubmit}
+          onClose={() => { setCaseDialogOpen(false); setEditingCase(undefined); }} 
+          existingCase={editingCase}
+        />
+      )}
       <TimeLogDialog
         open={timeDialogOpen}
         onOpenChange={(o) => { setTimeDialogOpen(o); if (!o) { setEditingTime(null); setDefaultTimeCaseId(undefined); } }}

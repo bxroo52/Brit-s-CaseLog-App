@@ -18,6 +18,7 @@ import {
   ExpenseFormData,
   ActivityRate,
   RateChangeLog,
+  CaseStatus,
 } from '@/types';
 import {
   createCase,
@@ -62,7 +63,7 @@ interface AppState {
   selectedMonth: string; // "2026-06"
   currentCaseId: string | null;
   searchTerm: string;
-  statusFilter: 'All' | 'Open' | 'Closed';
+  statusFilter: 'All' | CaseStatus;
   assignmentFilter: string[];
   dateFilterField: 'createdAt' | 'updatedAt';
   dateFilterFrom: string;
@@ -126,7 +127,7 @@ interface AppState {
 
   // Filters / UI
   setSearchTerm: (term: string) => void;
-  setStatusFilter: (filter: 'All' | 'Open' | 'Closed') => void;
+  setStatusFilter: (filter: 'All' | CaseStatus) => void;
   setAssignmentFilter: (types: string[]) => void;
   setDateFilter: (field: 'createdAt' | 'updatedAt', from: string, to: string) => void;
   setHourlyRateFilter: (min: number | '', max: number | '') => void;
@@ -204,17 +205,21 @@ export const useAppStore = create<AppState>()(
         set({ isLoading: true });
         try {
           const currentUserId = get().user?.id;
-          const [cases, timeEntriesRaw, expenses] = await Promise.all([
+          const [casesRaw, timeEntriesRaw, expenses] = await Promise.all([
             getAllCases(currentUserId),
             getAllTimeEntries(currentUserId),
             getAllExpenses(currentUserId),
           ]);
+          const cases = casesRaw.map((c: any) => ({
+            ...c,
+            respondentName: c.respondentName || `${c.respondentFirstName || ''} ${c.respondentLastName || ''}`.trim(),
+          })) as any;
           // Backfill new fields for legacy entries (preserve historical)
           const timeEntries = timeEntriesRaw.map((t: any) => ({
             ...t,
             activityRate: t.activityRate ?? t.hourlyRate ?? DEFAULT_HOURLY_RATE,
             totalAmount: t.totalAmount ?? t.amount ?? 0,
-          }));
+          })) as any;
           set({ cases, timeEntries, expenses, isLoading: false });
           // also load rates (non-blocking if fails)
           get().loadActivityRates().catch(() => {});
@@ -671,7 +676,8 @@ export const useAppStore = create<AppState>()(
         const currentUserId = get().user?.id;
         const demoCase = await createCase({
           userId: currentUserId,
-          respondentName: 'Smith, Jordan',
+          respondentFirstName: 'Smith',
+          respondentLastName: 'Jordan',
           caseNumber: '3AN-25-00487',
           assignmentType: 'Review',
           status: 'Open',
@@ -731,7 +737,7 @@ export const useAppStore = create<AppState>()(
           const q = searchTerm.toLowerCase().trim();
           result = result.filter(
             (c) =>
-              c.respondentName.toLowerCase().includes(q) ||
+              (c.respondentFirstName + ' ' + c.respondentLastName).toLowerCase().includes(q) ||
               c.caseNumber.toLowerCase().includes(q) ||
               (c.caseNotes || '').toLowerCase().includes(q)
           );
@@ -751,7 +757,7 @@ export const useAppStore = create<AppState>()(
 
         if (hourlyRateMin !== '' || hourlyRateMax !== '') {
           result = result.filter((c) => {
-            const rate = c.hourlyRate;
+            const rate = c.hourlyRate ?? 0;
             if (hourlyRateMin !== '' && rate < hourlyRateMin) return false;
             if (hourlyRateMax !== '' && rate > hourlyRateMax) return false;
             return true;
@@ -777,7 +783,7 @@ export const useAppStore = create<AppState>()(
           const q = searchTerm.toLowerCase().trim();
           result = result.filter(
             (c) =>
-              c.respondentName.toLowerCase().includes(q) ||
+              (c.respondentFirstName + ' ' + c.respondentLastName).toLowerCase().includes(q) ||
               c.caseNumber.toLowerCase().includes(q) ||
               (c.caseNotes || '').toLowerCase().includes(q)
           );
@@ -799,7 +805,7 @@ export const useAppStore = create<AppState>()(
         // Hourly rate range
         if (hourlyRateMin !== '' || hourlyRateMax !== '') {
           result = result.filter((c) => {
-            const rate = c.hourlyRate;
+            const rate = c.hourlyRate ?? 0;
             if (hourlyRateMin !== '' && rate < hourlyRateMin) return false;
             if (hourlyRateMax !== '' && rate > hourlyRateMax) return false;
             return true;

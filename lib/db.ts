@@ -130,7 +130,7 @@ export async function getOpenCases(userId?: string): Promise<Case[]> {
   } else {
     rows = await db.cases.where('status').equals('Open').toArray();
   }
-  rows.sort((a, b) => a.respondentName.localeCompare(b.respondentName));
+  rows.sort((a, b) => (a.respondentLastName || '').localeCompare(b.respondentLastName || ''));
   return rows.filter(c => !c.isDeleted);
 }
 
@@ -504,7 +504,7 @@ export async function buildMonthlyBillingSummary(billingMonth: string, userId?: 
     caseMap.set(c.id, {
       caseId: c.id,
       caseNumber: c.caseNumber,
-      respondentName: c.respondentName,
+      respondentName: `${c.respondentFirstName} ${c.respondentLastName}`,
       assignmentType: c.assignmentType,
       hourlyRate: c.hourlyRate,
       firstTimeBilling: c.firstTimeBilling,
@@ -567,7 +567,7 @@ export async function buildMonthlyBillingSummary(billingMonth: string, userId?: 
       openCourtTime: Math.round(c.openCourtTime * 10) / 10,
       outOfCourtTime: Math.round(c.outOfCourtTime * 10) / 10,
     }))
-    .sort((a, b) => a.respondentName.localeCompare(b.respondentName));
+    .sort((a, b) => (a.respondentLastName || '').localeCompare(b.respondentLastName || ''));
 
   const overallTimeHours = caseSummaries.reduce((s, c) => s + c.timeTotal, 0);
   const overallTimeAmount = caseSummaries.reduce((s, c) => s + c.timeAmount, 0);
