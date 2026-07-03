@@ -10,6 +10,7 @@ import OpenCasesSection from '@/components/OpenCasesSection';
 import ProfileForm from '@/components/ProfileForm';
 import ProfileOverview from '@/components/ProfileOverview';
 import LogTimeModal from '@/app/components/LogTimeModal';
+import NewCaseModal from '@/app/components/NewCaseModal';
 import ActivityRatesModal from '@/app/components/ActivityRatesModal';
 import { generateBillingSpreadsheet } from '@/lib/generateBillingSpreadsheet';
 import { TimeLogDialog } from '@/components/TimeLogDialog';
@@ -611,6 +612,7 @@ export default function CaseLogApp() {
   const [profileFormOpen, setProfileFormOpen] = useState(false);
   const [logTimeOpen, setLogTimeOpen] = useState(false);
   const [logTimeCaseId, setLogTimeCaseId] = useState<string | undefined>();
+  const [newCaseModalOpen, setNewCaseModalOpen] = useState(false);
 
   const [billingMonth, setBillingMonth] = useState(selectedMonth);
 
@@ -675,8 +677,7 @@ export default function CaseLogApp() {
   };
 
   const openNewCase = () => {
-    setEditingCase(undefined);
-    setCaseDialogOpen(true);
+    setNewCaseModalOpen(true);
   };
 
   const handleToggleStatus = async (c: Case) => {
@@ -1621,6 +1622,11 @@ export default function CaseLogApp() {
           setLogTimeOpen(false);
           setLogTimeCaseId(undefined);
         }}
+      />
+
+      <NewCaseModal
+        isOpen={newCaseModalOpen}
+        onClose={() => setNewCaseModalOpen(false)}
       />
 
       {/* Account modal / info screens */}
