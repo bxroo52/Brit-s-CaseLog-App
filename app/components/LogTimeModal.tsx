@@ -6,15 +6,38 @@ import { supabase } from '@/lib/supabase';
 export default function LogTimeModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const [selectedActivity, setSelectedActivity] = useState('Contact');
   const [hours, setHours] = useState('1');
-  const [rate, setRate] = useState<number>(50);
+  const [rate, setRate] = useState<number>(0);
+  const [loadingRate, setLoadingRate] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
-    const defaults: Record<string, number> = {
-      'Contact': 50, 'Court': 50, 'Research': 50, 'Report Writing': 50,
-      'Drive Time': 25, 'Wait Time': 25, 'Other': 50
-    };
-    setRate(defaults[selectedActivity] || 50);
+
+    async function loadRate() {
+      setLoadingRate(true);
+      if (!supabase) {
+        setRate(0);
+        setLoadingRate(false);
+        return;
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setRate(0);
+        setLoadingRate(false);
+        return;
+      }
+
+      const { data } = await supabase
+        .from('hourly_rates')
+        .select('hourly_rate')
+        .eq('user_id', user.id)
+        .eq('activity_type', selectedActivity)
+        .single();
+
+      setRate(data?.hourly_rate ?? 0);
+      setLoadingRate(false);
+    }
+    loadRate();
   }, [isOpen, selectedActivity]);
 
   const estimated = (parseFloat(hours) * rate).toFixed(2);
@@ -29,7 +52,7 @@ export default function LogTimeModal({ isOpen, onClose }: { isOpen: boolean; onC
         <div className="mb-6">
           <label className="text-sm text-zinc-400">Activity</label>
           <select value={selectedActivity} onChange={e => setSelectedActivity(e.target.value)} className="w-full bg-zinc-900 p-4 rounded-xl mt-1">
-            {Object.keys({'Contact':50,'Court':50,'Research':50,'Report Writing':50,'Drive Time':25,'Wait Time':25,'Other':50}).map(a => (
+            {['Contact','Court','Research','Report Writing','Drive Time','Wait Time','Other'].map(a => (
               <option key={a} value={a}>{a}</option>
             ))}
           </select>

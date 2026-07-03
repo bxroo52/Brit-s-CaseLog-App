@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef, memo } from 'react';
 import { useAppStore, initializeAppData } from '@/stores/useAppStore';
-import { useTheme } from 'next-themes';
+
 import { announce } from '@/lib/utils';
 import { AppHeader, BottomTabBar } from '@/components/AppHeader';
 import NewCaseForm from '@/components/NewCaseForm';
@@ -179,7 +179,7 @@ const LoginScreen = memo<LoginScreenProps>(({ signIn, signUp, resetPassword, isS
 
   return (
     <div
-      className="min-h-dvh bg-zinc-50 dark:bg-zinc-950"
+      className="min-h-dvh bg-zinc-950"
       style={{ minHeight: '100dvh' }}
     >
       <div
@@ -224,7 +224,7 @@ const LoginScreen = memo<LoginScreenProps>(({ signIn, signUp, resetPassword, isS
                     onFocus={handleInputFocus}
                     onBlur={handleInputBlur}
                     placeholder="you@example.com"
-                    className="mt-1.5 h-11 w-full min-w-0 rounded-lg border border-input bg-transparent px-3 py-2 text-base outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 dark:bg-input/30"
+                    className="mt-1.5 h-11 w-full min-w-0 rounded-lg border border-input bg-transparent px-3 py-2 text-base outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 bg-input/30"
                     required
                     autoCapitalize="none"
                     autoCorrect="off"
@@ -246,7 +246,7 @@ const LoginScreen = memo<LoginScreenProps>(({ signIn, signUp, resetPassword, isS
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
                       placeholder="••••••••"
-                      className="mt-1.5 h-11 w-full min-w-0 rounded-lg border border-input bg-transparent px-3 py-2 text-base outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 dark:bg-input/30"
+                      className="mt-1.5 h-11 w-full min-w-0 rounded-lg border border-input bg-transparent px-3 py-2 text-base outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 bg-input/30"
                       required
                       autoComplete={authView === 'signup' ? 'new-password' : 'current-password'}
                       enterKeyHint="done"
@@ -265,7 +265,7 @@ const LoginScreen = memo<LoginScreenProps>(({ signIn, signUp, resetPassword, isS
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
                       placeholder="e.g. Visitor-123"
-                      className="mt-1.5 h-11 w-full min-w-0 rounded-lg border border-input bg-transparent px-3 py-2 text-base outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 dark:bg-input/30"
+                      className="mt-1.5 h-11 w-full min-w-0 rounded-lg border border-input bg-transparent px-3 py-2 text-base outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 bg-input/30"
                       autoCapitalize="none"
                       spellCheck={false}
                     />
@@ -427,13 +427,6 @@ export default function CaseLogApp() {
       case 'Activity Rates':
         setActivityRatesOpen(true);
         return;
-      case 'Dark mode': {
-        const current = theme || 'system';
-        const next = current === 'light' ? 'dark' : current === 'dark' ? 'system' : 'light';
-        setTheme(next as 'light' | 'dark' | 'system');
-        toast.success(`Theme set to ${next}`);
-        return;
-      }
       case 'Notifications': {
         const newEnabled = !notificationsEnabled;
         if (newEnabled) {
@@ -575,7 +568,7 @@ export default function CaseLogApp() {
               <li>Tailwind CSS + shadcn/ui</li>
               <li>Dexie.js (IndexedDB)</li>
               <li>Supabase (auth + optional sync)</li>
-              <li>next-themes (dark mode)</li>
+
               <li>date-fns, lucide-react, sonner, jsPDF</li>
               <li>Zustand (state)</li>
               <li>PWA APIs, Service Worker</li>
@@ -619,8 +612,6 @@ export default function CaseLogApp() {
   const [profileFormOpen, setProfileFormOpen] = useState(false);
   const [logTimeOpen, setLogTimeOpen] = useState(false);
   const [logTimeCaseId, setLogTimeCaseId] = useState<string | undefined>();
-
-  const { theme, setTheme } = useTheme();
 
   const [billingMonth, setBillingMonth] = useState(selectedMonth);
 
@@ -1479,7 +1470,6 @@ export default function CaseLogApp() {
 
   const AccountView = () => {
     // Dynamic labels for live state
-    const darkModeLabel = theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'System';
     const notifLabel = notificationsEnabled ? 'On' : 'Off';
 
     const renderItem = (label: string, subtext?: string) => (
@@ -1507,7 +1497,6 @@ export default function CaseLogApp() {
             {renderItem('Activity Rates')}
             {renderItem('Siri Shortcuts')}
             {renderItem('Integrations')}
-            {renderItem('Dark mode', darkModeLabel)}
             {renderItem('Notifications', notifLabel)}
           </div>
         </div>
@@ -1553,7 +1542,7 @@ export default function CaseLogApp() {
         <div className="pt-4">
           <button
             onClick={() => handleAccountItem('Sign out')}
-            className="w-full text-center py-3 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-xl border border-red-200 dark:border-red-900 active:bg-red-100"
+            className="w-full text-center py-3 text-sm font-medium text-red-600 hover:bg-red-950/20 rounded-xl border border-red-900 active:bg-red-950/30"
           >
             Sign out
           </button>
@@ -1574,7 +1563,7 @@ export default function CaseLogApp() {
   }
 
   return (
-    <div className="min-h-dvh flex flex-col bg-zinc-50 dark:bg-zinc-950" style={{ minHeight: '100dvh' }}>
+    <div className="min-h-dvh flex flex-col bg-zinc-950" style={{ minHeight: '100dvh' }}>
       <AppHeader />
 
       <main className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 py-8 pb-16">

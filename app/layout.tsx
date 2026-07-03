@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { PWARegister } from "@/components/PWARegister";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { ThemeProvider } from "next-themes";
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -53,17 +53,16 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem={true}>
-          <OfflineBanner />
-          <ErrorBoundary>
-            {children}
-          </ErrorBoundary>
-          <Toaster position="top-center" richColors closeButton />
-          <PWARegister />
+        <OfflineBanner />
+        <ErrorBoundary>
+          {children}
+        </ErrorBoundary>
+        <Toaster position="top-center" richColors closeButton theme="dark" />
+        <PWARegister />
 
           {/* ARIA Live Regions for screen reader announcements (visually hidden) */}
           <div
@@ -80,7 +79,6 @@ export default function RootLayout({
             aria-atomic="true"
             className="sr-only"
           />
-        </ThemeProvider>
       </body>
     </html>
   );

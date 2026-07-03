@@ -70,7 +70,7 @@ export default function OpenCasesSection({ openCases, onNewCase, onManageAll, on
       {/* Prominent New Case Button */}
       <button
         onClick={onNewCase}
-        className="w-full bg-white text-black font-semibold py-4 rounded-2xl flex items-center justify-center gap-2 active:bg-gray-200"
+        className="w-full bg-white text-black font-semibold py-4 rounded-2xl flex items-center justify-center gap-2 active:bg-zinc-200"
       >
         <span className="text-2xl leading-none">+</span> New Case
       </button>

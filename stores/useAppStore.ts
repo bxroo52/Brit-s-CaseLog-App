@@ -39,7 +39,6 @@ import {
   updateUserProfile,
   getActivityRates,
   setActivityRate,
-  initializeDefaultActivityRates,
   logRateChange,
   getRateChangeLogs,
   buildMonthlyBillingSummary,
@@ -239,9 +238,9 @@ export const useAppStore = create<AppState>()(
       loadActivityRates: async () => {
         const currentUserId = get().user?.id;
         let rates = await getActivityRates(currentUserId);
-        // Ensure defaults for all activities if missing
-        await initializeDefaultActivityRates(currentUserId);
-        rates = await getActivityRates(currentUserId);
+        // Do not auto-seed defaults (50/25 or 0) here.
+        // Rates should only exist if the user has explicitly set them.
+        // getActivityRate will fallback to DEFAULT_HOURLY_RATE (0) if none set.
         set({ activityRates: rates });
         // also refresh logs
         const logs = await getRateChangeLogs(currentUserId);
