@@ -41,6 +41,7 @@ import {
   LogOut,
   Settings,
   ChevronRight,
+  FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
@@ -48,6 +49,7 @@ import { getRecentMonths, formatMonth, formatCurrency, formatHours, formatDate }
 import { generateCaseInvoicePDF, generateFullBillingPackagePDF } from '@/lib/generateInvoice';
 import { ASSIGNMENT_TYPES } from '@/lib/constants';
 import { buildMonthlyBillingSummary } from '@/lib/db';
+import { isSupabaseConfigured } from '@/lib/supabase';
 import { Case, TimeEntry, Expense, UserProfile } from '@/types';
 
 type View = 'dashboard' | 'cases' | 'time' | 'expenses' | 'billing' | 'account';
@@ -93,9 +95,90 @@ export default function CaseLogApp() {
     pendingChangesCount,
     saveProfile,
     clearLocalData,
+    user,
+    isAuthenticated,
+    signUp,
+    signIn,
+    signOut,
+    resetPassword,
   } = useAppStore();
 
   const [activeView, setActiveView] = useState<View>('dashboard');
+  const [authView, setAuthView] = useState<'login' | 'signup' | 'reset'>('login');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authUserId, setAuthUserId] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+
+  const handleSignIn = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!authEmail || !authPassword) {
+      setAuthError('Email and password required.');
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      await signIn(authEmail, authPassword);
+      setAuthEmail('');
+      setAuthPassword('');
+      setActiveView('dashboard');
+    } catch (e: any) {
+      setAuthError(e.message || 'Login failed.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleSignUp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!authEmail || !authPassword) {
+      setAuthError('Email and password required.');
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      await signUp(authEmail, authPassword, authUserId || undefined);
+      toast.success('Check your email to confirm signup, then sign in.');
+      setAuthView('login');
+      setAuthEmail('');
+      setAuthPassword('');
+      setAuthUserId('');
+    } catch (e: any) {
+      setAuthError(e.message || 'Sign up failed.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!authEmail) {
+      setAuthError('Email required.');
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      await resetPassword(authEmail);
+      setAuthView('login');
+      setAuthEmail('');
+      toast.success('Check your email for reset link.');
+    } catch (e: any) {
+      setAuthError(e.message || 'Failed to send reset.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    setAuthView('login');
+    setActiveView('dashboard');
+  };
+
   const [caseDialogOpen, setCaseDialogOpen] = useState(false);
   const [editingCase, setEditingCase] = useState<Case | undefined>();
   const [timeDialogOpen, setTimeDialogOpen] = useState(false);
@@ -964,12 +1047,7 @@ export default function CaseLogApp() {
   const AccountView = () => {
     const handleItemClick = (label: string) => {
       if (label === 'Sign out') {
-        if (confirm('Are you sure you want to sign out?')) {
-          clearLocalData();
-          toast.success('Signed out successfully.');
-          // Optionally switch to dashboard
-          setActiveView('dashboard');
-        }
+        handleSignOut();
         return;
       }
       if (label === 'Settings') {
@@ -1057,6 +1135,111 @@ export default function CaseLogApp() {
       </div>
     );
   };
+
+  const LoginScreen = () => (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-50 dark:bg-zinc-950 px-4">
+      <div className="w-full max-w-sm space-y-6">
+        <div className="text-center">
+          <div className="mx-auto h-12 w-12 rounded-xl bg-foreground text-background flex items-center justify-center mb-4">
+            <FileText className="h-6 w-6" />
+          </div>
+          <h1 className="text-3xl font-semibold tracking-tighter">CaseLog</h1>
+          <p className="text-muted-foreground mt-1">Court Visitor Billing</p>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-center">
+              {authView === 'login' && 'Log in'}
+              {authView === 'signup' && 'Sign up'}
+              {authView === 'reset' && 'Reset Password'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={authView === 'login' ? handleSignIn : authView === 'signup' ? handleSignUp : handleResetPassword} className="space-y-4">
+              <div>
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="mt-1.5"
+                  required
+                />
+              </div>
+
+              {(authView === 'login' || authView === 'signup') && (
+                <div>
+                  <Label>Password</Label>
+                  <Input
+                    type="password"
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="mt-1.5"
+                    required
+                  />
+                </div>
+              )}
+
+              {authView === 'signup' && (
+                <div>
+                  <Label>Optional UserID / Name</Label>
+                  <Input
+                    value={authUserId}
+                    onChange={(e) => setAuthUserId(e.target.value)}
+                    placeholder="e.g. Visitor-123"
+                    className="mt-1.5"
+                  />
+                </div>
+              )}
+
+              {authError && (
+                <p className="text-sm text-destructive">{authError}</p>
+              )}
+
+              <Button type="submit" className="w-full" disabled={authLoading}>
+                {authLoading ? 'Loading...' : 
+                  authView === 'login' ? 'Log In' : 
+                  authView === 'signup' ? 'Sign Up' : 'Send Reset Link'}
+              </Button>
+            </form>
+          </CardContent>
+          <CardFooter className="flex flex-col gap-2 text-sm">
+            {authView === 'login' && (
+              <>
+                <button onClick={() => { setAuthView('signup'); setAuthError(''); }} className="text-primary hover:underline">
+                  Don't have an account? Sign up
+                </button>
+                <button onClick={() => { setAuthView('reset'); setAuthError(''); }} className="text-muted-foreground hover:underline">
+                  Forgot password?
+                </button>
+              </>
+            )}
+            {(authView === 'signup' || authView === 'reset') && (
+              <button onClick={() => { setAuthView('login'); setAuthError(''); }} className="text-primary hover:underline">
+                Back to login
+              </button>
+            )}
+            {authView === 'reset' && (
+              <p className="text-xs text-muted-foreground text-center pt-2">
+                Check your email for the reset link.
+              </p>
+            )}
+          </CardFooter>
+        </Card>
+
+        <p className="text-xs text-center text-muted-foreground">
+          {isSupabaseConfigured ? 'Secured with Supabase Auth' : 'Supabase not configured (demo mode)'}
+        </p>
+      </div>
+    </div>
+  );
+
+  if (!isAuthenticated) {
+    return <LoginScreen />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">

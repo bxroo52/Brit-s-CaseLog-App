@@ -40,6 +40,7 @@ import {
 } from '@/lib/db';
 import { getBillingMonth, roundToNearestTenth, calculateAmount } from '@/lib/db';
 import { format } from 'date-fns';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 interface AppState {
   // Data
@@ -70,6 +71,10 @@ interface AppState {
   isSyncing: boolean;
   pendingChangesCount: number;
   lastSync: string | null;
+
+  // Auth
+  user: any | null;
+  isAuthenticated: boolean;
 
   // Actions - Cases
   loadAllData: () => Promise<void>;
@@ -116,6 +121,14 @@ interface AppState {
   syncNow: () => Promise<void>;
   clearLocalData: () => Promise<void>;
 
+  // Auth
+  initAuth: () => Promise<void>;
+  signUp: (email: string, password: string, userId?: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  setUser: (user: any | null) => void;
+
   // Derived
   getOpenCases: () => Case[];
   getFilteredOpenCases: () => Case[];
@@ -152,6 +165,9 @@ export const useAppStore = create<AppState>()(
       isSyncing: false,
       pendingChangesCount: 0,
       lastSync: null,
+
+      user: null,
+      isAuthenticated: false,
 
       // ---- Load ----
       loadAllData: async () => {
@@ -375,6 +391,80 @@ export const useAppStore = create<AppState>()(
       setHourlyRateFilter: (min, max) => set({ hourlyRateMin: min, hourlyRateMax: max }),
       clearAllFilters: () => set({ searchTerm: '', statusFilter: 'All', assignmentFilter: [], dateFilterFrom: '', dateFilterTo: '', hourlyRateMin: '', hourlyRateMax: '' }),
 
+      // ---- Auth actions (Supabase) ----
+      setUser: (user) => set({ user, isAuthenticated: !!user }),
+
+      signUp: async (email, password, userId) => {
+        if (!isSupabaseConfigured || !supabase) {
+          toast.error('Supabase not configured. Auth requires Supabase.');
+          return;
+        }
+        try {
+          const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: { userId: userId || '' },
+            },
+          });
+          if (error) throw error;
+          if (data.user) {
+            set({ user: data.user, isAuthenticated: true });
+            // Also save initial profile if provided
+            if (userId) {
+              await get().saveProfile({ name: userId });
+            }
+            toast.success('Account created! Check your email to confirm.');
+          }
+        } catch (e: any) {
+          toast.error(e.message || 'Sign up failed.');
+          throw e;
+        }
+      },
+
+      signIn: async (email, password) => {
+        if (!isSupabaseConfigured || !supabase) {
+          toast.error('Supabase not configured. Auth requires Supabase.');
+          return;
+        }
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+          if (error) throw error;
+          if (data.user) {
+            set({ user: data.user, isAuthenticated: true });
+            toast.success('Logged in successfully.');
+          }
+        } catch (e: any) {
+          toast.error(e.message || 'Login failed.');
+          throw e;
+        }
+      },
+
+      signOut: async () => {
+        if (supabase) {
+          await supabase.auth.signOut();
+        }
+        set({ user: null, isAuthenticated: false, cases: [], timeEntries: [], expenses: [], profile: null });
+        toast('Signed out.');
+      },
+
+      resetPassword: async (email) => {
+        if (!isSupabaseConfigured || !supabase) {
+          toast.error('Supabase not configured.');
+          return;
+        }
+        try {
+          const { error } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: `${window.location.origin}/`, // or a reset page
+          });
+          if (error) throw error;
+          toast.success('Check your email for reset link.');
+        } catch (e: any) {
+          toast.error(e.message || 'Failed to send reset email.');
+          throw e;
+        }
+      },
+
       // ---- Sync actions implementation ----
       refreshSyncStatus: async () => {
         const { getPendingQueueCount, getIsOnline } = await import('@/lib/sync');
@@ -409,6 +499,27 @@ export const useAppStore = create<AppState>()(
         set({ cases: [], timeEntries: [], expenses: [], pendingChangesCount: 0 });
         toast('Local data wiped.');
         announce('Local data wiped.', false);
+      },
+
+      initAuth: async () => {
+        if (!isSupabaseConfigured || !supabase) {
+          // For offline-only, allow demo mode or require config? For now, require Supabase for auth.
+          // If no Supabase, perhaps stay unauth and force login error.
+          set({ user: null, isAuthenticated: false });
+          return;
+        }
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          set({ user: session.user, isAuthenticated: true });
+        }
+        // Listen for auth changes
+        supabase.auth.onAuthStateChange((_event, session) => {
+          if (session?.user) {
+            set({ user: session.user, isAuthenticated: true });
+          } else {
+            set({ user: null, isAuthenticated: false });
+          }
+        });
       },
 
       seedDemoData: async () => {
@@ -575,5 +686,5 @@ export const useAppStore = create<AppState>()(
 // Convenience: load data on first mount from outside (see layout or root)
 export async function initializeAppData() {
   const store = useAppStore.getState();
-  await Promise.all([store.loadAllData(), store.loadProfile()]);
+  await Promise.all([store.loadAllData(), store.loadProfile(), store.initAuth()]);
 }
