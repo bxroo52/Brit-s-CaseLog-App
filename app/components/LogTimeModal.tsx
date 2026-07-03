@@ -40,7 +40,7 @@ export default function LogTimeModal({ isOpen, onClose }: { isOpen: boolean; onC
     loadRate();
   }, [isOpen, selectedActivity]);
 
-  const estimated = (parseFloat(hours) * rate).toFixed(2);
+  const estimated = `$${(parseFloat(hours) * rate).toFixed(2)}`;
 
   if (!isOpen) return null;
 
@@ -65,7 +65,7 @@ export default function LogTimeModal({ isOpen, onClose }: { isOpen: boolean; onC
 
         <div>
           <div className="text-sm text-zinc-400">Estimated Bill</div>
-          <div className="text-5xl font-semibold">$${estimated}</div>
+          <div className="text-5xl font-semibold">{estimated}</div>
           <div className="text-sm text-zinc-400">(${rate}/hr)</div>
         </div>
 

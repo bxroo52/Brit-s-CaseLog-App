@@ -10,19 +10,32 @@ export default function ActivityRatesModal({ isOpen, onClose }: { isOpen: boolea
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!isOpen) {
-      setRates({}); // reset when closed
-      return;
+    if (!isOpen) return;
+
+    async function loadRates() {
+      if (!supabase) {
+        setRates({});
+        return;
+      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setRates({});
+        return;
+      }
+
+      const { data } = await supabase
+        .from('hourly_rates')
+        .select('activity_type, hourly_rate')
+        .eq('user_id', user.id);
+
+      const loaded: Record<string, string> = {};
+      activityTypes.forEach(type => {
+        const saved = data?.find(r => r.activity_type === type);
+        loaded[type] = saved?.hourly_rate != null ? saved.hourly_rate.toString() : '';
+      });
+      setRates(loaded);
     }
-
-    // Start completely blank every time
-    const blankRates: Record<string, string> = {};
-    activityTypes.forEach(type => blankRates[type] = '');
-    setRates(blankRates);
-
-    // Optional: load saved in background (uncomment if you want to load previous saves)
-    // async function load() { ... }
-    // load();
+    loadRates();
   }, [isOpen]);
 
   const handleChange = (type: string, value: string) => {
