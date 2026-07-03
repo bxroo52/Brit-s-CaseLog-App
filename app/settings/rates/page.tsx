@@ -1,70 +1,51 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-
-const activityTypes = [
-  'Contact', 'Court', 'Research', 'Report Writing',
-  'Drive Time', 'Wait Time', 'Other'
-];
+import { useAppStore } from '@/stores/useAppStore';
+import { ACTIVITY_TYPES } from '@/lib/constants';
 
 export default function RatesSettings() {
+  const { activityRates, saveActivityRate, loadActivityRates } = useAppStore();
   const [rates, setRates] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     async function loadRates() {
-      if (!supabase) return;
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data } = await supabase
-        .from('hourly_rates')
-        .select('activity_type, hourly_rate')
-        .eq('user_id', user.id);
-
-      const loaded: Record<string, string> = {};
-      data?.forEach(r => {
-        if (r.hourly_rate !== null) {
-          loaded[r.activity_type] = r.hourly_rate.toFixed(2);
-        }
-      });
-      setRates(loaded);
+      try {
+        await loadActivityRates().catch(() => {});
+        const currentRates = useAppStore.getState().activityRates;
+        const loaded: Record<string, string> = {};
+        ACTIVITY_TYPES.forEach((type) => {
+          const found = currentRates.find((r) => r.activityName === type);
+          loaded[type] = found ? found.hourlyRate.toString() : '';
+        });
+        setRates(loaded);
+      } catch {
+        const blank: Record<string, string> = {};
+        ACTIVITY_TYPES.forEach((t) => { blank[t] = ''; });
+        setRates(blank);
+      }
     }
     loadRates();
   }, []);
 
   const handleChange = (type: string, value: string) => {
-    setRates(prev => ({ ...prev, [type]: value }));
+    setRates((prev) => ({ ...prev, [type]: value }));
   };
 
   const handleSave = async () => {
     setLoading(true);
-    if (!supabase) {
-      alert('Supabase not configured');
-      setLoading(false);
-      return;
-    }
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    const updates = Object.entries(rates).map(([activity_type, rate]) => ({
-      user_id: user.id,
-      activity_type,
-      hourly_rate: rate ? parseFloat(rate) : null
-    }));
-
-    const { error } = await supabase
-      .from('hourly_rates')
-      .upsert(updates, { onConflict: 'user_id,activity_type' });
-
-    if (!error) {
+    try {
+      const entries = Object.entries(rates).filter(([, v]) => v.trim() !== '');
+      for (const [activityName, rateStr] of entries) {
+        const num = parseFloat(rateStr);
+        if (!isNaN(num)) {
+          await saveActivityRate(activityName, num);
+        }
+      }
       alert('Rates saved successfully!');
-    } else {
-      console.error(error);
+    } catch (e) {
+      console.error('Failed saving rates', e);
       alert('Error saving rates');
     }
     setLoading(false);
@@ -78,7 +59,7 @@ export default function RatesSettings() {
       </p>
 
       <div className="space-y-6">
-        {activityTypes.map(type => (
+        {ACTIVITY_TYPES.map((type) => (
           <div key={type} className="flex items-center justify-between">
             <span className="text-lg">{type}</span>
             <div className="flex items-center gap-2">

@@ -19,11 +19,11 @@ export default function LogTimeForm({ cases, onSubmit, onCancel, defaultCaseId }
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { activityRates: storeRates } = useAppStore();
+  const { getActivityRate } = useAppStore();
 
   const selectedCase = cases.find(c => c.id === selectedCaseId);
   const hours = parseFloat(billableHours) || 0;
-  const rate = storeRates.find(r => r.activityName === activity)?.hourlyRate ?? 0;
+  const rate = getActivityRate(activity);
   const estimatedBill = (hours * rate).toFixed(2);
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-
-const activityTypes = ['Contact', 'Court', 'Research', 'Report Writing', 'Drive Time', 'Wait Time', 'Other'];
+import { useAppStore } from '@/stores/useAppStore';
+import { ACTIVITY_TYPES } from '@/lib/constants';
 
 export default function ActivityRatesModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const { activityRates, saveActivityRate, loadActivityRates } = useAppStore();
   const [rates, setRates] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
@@ -13,58 +13,43 @@ export default function ActivityRatesModal({ isOpen, onClose }: { isOpen: boolea
     if (!isOpen) return;
 
     async function loadRates() {
-      if (!supabase) return;
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data } = await supabase
-        .from('hourly_rates')
-        .select('activity_type, hourly_rate')
-        .eq('user_id', user.id);
-
-      const loaded: Record<string, string> = {};
-      data?.forEach(r => {
-        if (r.hourly_rate !== null) loaded[r.activity_type] = r.hourly_rate.toFixed(2);
-      });
-      setRates(loaded);
+      try {
+        await loadActivityRates().catch(() => {});
+        const currentRates = useAppStore.getState().activityRates;
+        const loaded: Record<string, string> = {};
+        ACTIVITY_TYPES.forEach((type) => {
+          const found = currentRates.find((r) => r.activityName === type);
+          loaded[type] = found ? found.hourlyRate.toString() : '';
+        });
+        setRates(loaded);
+      } catch {
+        const blank: Record<string, string> = {};
+        ACTIVITY_TYPES.forEach((t) => { blank[t] = ''; });
+        setRates(blank);
+      }
     }
     loadRates();
   }, [isOpen]);
 
   const handleChange = (type: string, value: string) => {
-    setRates(prev => ({ ...prev, [type]: value }));
+    setRates((prev) => ({ ...prev, [type]: value }));
   };
 
   const handleSave = async () => {
     setLoading(true);
-    if (!supabase) {
-      alert('Supabase not configured');
-      setLoading(false);
-      return;
-    }
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    const updates = Object.entries(rates).map(([activity_type, rate]) => ({
-      user_id: user.id,
-      activity_type,
-      hourly_rate: rate ? parseFloat(rate) : null,
-    }));
-
-    const { error } = await supabase
-      .from('hourly_rates')
-      .upsert(updates, { onConflict: 'user_id,activity_type' });
-
-    if (!error) {
-      // Optional: sync to Zustand if still needed
-      onClose();
-    } else {
-      alert('Error saving rates');
+    try {
+      const entries = Object.entries(rates).filter(([, v]) => v.trim() !== '');
+      for (const [activityName, rateStr] of entries) {
+        const num = parseFloat(rateStr);
+        if (!isNaN(num)) {
+          await saveActivityRate(activityName, num);
+        }
+      }
+    } catch (e) {
+      console.error('Failed saving rates', e);
     }
     setLoading(false);
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -76,7 +61,7 @@ export default function ActivityRatesModal({ isOpen, onClose }: { isOpen: boolea
         <p className="text-zinc-400 text-sm mb-6">These apply to all future time logs.</p>
 
         <div className="space-y-6">
-          {activityTypes.map(type => (
+          {ACTIVITY_TYPES.map((type) => (
             <div key={type} className="flex items-center justify-between">
               <span>{type}</span>
               <div className="flex items-center gap-2">

@@ -1,46 +1,30 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useAppStore } from '@/stores/useAppStore';
+import { ACTIVITY_TYPES } from '@/lib/constants';
 
 export default function LogTimeModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const [selectedActivity, setSelectedActivity] = useState('Contact');
   const [hours, setHours] = useState('1');
   const [rate, setRate] = useState<number>(0);
-  const [loadingRate, setLoadingRate] = useState(false);
+
+  const { getActivityRate, loadActivityRates, activityRates } = useAppStore();
+
+  // Pull rate from saved Dexie storage (via store), not Supabase. Fix duplicate $ in estimate.
+  useEffect(() => {
+    if (!isOpen) return;
+    loadActivityRates().catch(() => {});
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
+    const r = getActivityRate(selectedActivity);
+    setRate(r);
+  }, [isOpen, selectedActivity, activityRates]);
 
-    async function loadRate() {
-      setLoadingRate(true);
-      if (!supabase) {
-        setRate(0);
-        setLoadingRate(false);
-        return;
-      }
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setRate(0);
-        setLoadingRate(false);
-        return;
-      }
-
-      const { data } = await supabase
-        .from('hourly_rates')
-        .select('hourly_rate')
-        .eq('user_id', user.id)
-        .eq('activity_type', selectedActivity)
-        .single();
-
-      setRate(data?.hourly_rate ?? 0);
-      setLoadingRate(false);
-    }
-    loadRate();
-  }, [isOpen, selectedActivity]);
-
-  const estimated = `$${(parseFloat(hours) * rate).toFixed(2)}`;
+  const numEst = (parseFloat(hours) * rate).toFixed(2);
+  const estimated = `$${numEst}`;
 
   if (!isOpen) return null;
 
@@ -52,7 +36,7 @@ export default function LogTimeModal({ isOpen, onClose }: { isOpen: boolean; onC
         <div className="mb-6">
           <label className="text-sm text-zinc-400">Activity</label>
           <select value={selectedActivity} onChange={e => setSelectedActivity(e.target.value)} className="w-full bg-zinc-900 p-4 rounded-xl mt-1">
-            {['Contact','Court','Research','Report Writing','Drive Time','Wait Time','Other'].map(a => (
+            {ACTIVITY_TYPES.map((a) => (
               <option key={a} value={a}>{a}</option>
             ))}
           </select>

@@ -1,70 +1,59 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-
-const activityTypes = ['Contact', 'Court', 'Research', 'Report Writing', 'Drive Time', 'Wait Time', 'Other'];
+import { useAppStore } from '@/stores/useAppStore';
+import { ACTIVITY_TYPES } from '@/lib/constants';
 
 export default function ActivityRatesModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const { activityRates, saveActivityRate, loadActivityRates } = useAppStore();
   const [rates, setRates] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
+  // Load from Dexie/IndexedDB (via store) when modal opens. Never auto-seed.
+  // Blank strings for activities that have never had a rate explicitly saved.
   useEffect(() => {
     if (!isOpen) return;
 
     async function loadRates() {
-      if (!supabase) {
-        setRates({});
-        return;
+      try {
+        await loadActivityRates().catch(() => {});
+        const currentRates = useAppStore.getState().activityRates;
+        const loaded: Record<string, string> = {};
+        ACTIVITY_TYPES.forEach((type) => {
+          const found = currentRates.find((r) => r.activityName === type);
+          loaded[type] = found ? found.hourlyRate.toString() : '';
+        });
+        setRates(loaded);
+      } catch {
+        // on any error, start completely blank
+        const blank: Record<string, string> = {};
+        ACTIVITY_TYPES.forEach((t) => { blank[t] = ''; });
+        setRates(blank);
       }
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setRates({});
-        return;
-      }
-
-      const { data } = await supabase
-        .from('hourly_rates')
-        .select('activity_type, hourly_rate')
-        .eq('user_id', user.id);
-
-      const loaded: Record<string, string> = {};
-      activityTypes.forEach(type => {
-        const saved = data?.find(r => r.activity_type === type);
-        loaded[type] = saved?.hourly_rate != null ? saved.hourly_rate.toString() : '';
-      });
-      setRates(loaded);
     }
     loadRates();
   }, [isOpen]);
 
   const handleChange = (type: string, value: string) => {
-    setRates(prev => ({ ...prev, [type]: value }));
+    setRates((prev) => ({ ...prev, [type]: value }));
   };
 
   const handleSave = async () => {
     setLoading(true);
-    if (!supabase) {
-      alert('Supabase not configured');
-      setLoading(false);
-      onClose();
-      return;
-    }
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const updates = Object.entries(rates)
-        .filter(([, v]) => v.trim() !== '')
-        .map(([activity_type, rateStr]) => ({
-          user_id: user.id,
-          activity_type,
-          hourly_rate: parseFloat(rateStr),
-        }));
-      if (updates.length > 0) {
-        await supabase.from('hourly_rates').upsert(updates, { onConflict: 'user_id,activity_type' });
+    try {
+      const entries = Object.entries(rates).filter(([, v]) => v.trim() !== '');
+      for (const [activityName, rateStr] of entries) {
+        const num = parseFloat(rateStr);
+        if (!isNaN(num)) {
+          await saveActivityRate(activityName, num);
+        }
       }
+    } catch (e) {
+      console.error('Failed saving rates', e);
+      // still close; data in storage is what matters
     }
-    onClose();
     setLoading(false);
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -76,7 +65,7 @@ export default function ActivityRatesModal({ isOpen, onClose }: { isOpen: boolea
         <p className="text-zinc-400 text-sm mb-8">Set the hourly rate for each activity type. These apply to all future time logs.</p>
 
         <div className="space-y-8">
-          {activityTypes.map((name) => (
+          {ACTIVITY_TYPES.map((name) => (
             <div key={name} className="flex items-center justify-between border-b border-zinc-700 pb-6">
               <span className="text-xl font-semibold text-white">{name}</span>
               <div className="flex items-center gap-3">
