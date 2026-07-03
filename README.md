@@ -209,3 +209,46 @@ Empty states, toasts, and buttons are irreverent and direct.
 ## License
 
 Internal tool. Use responsibly.
+
+## AI-Assisted Development & Auto-Commit
+
+This project is actively developed with assistance from an AI coding agent (Grok).
+
+**All file edits by the AI are automatically committed and pushed.**
+
+### How it works
+
+After any code change, the agent runs:
+
+```bash
+git quick "descriptive commit message here"
+```
+
+### Git Alias Setup
+
+Configured locally with:
+
+```bash
+git config alias.quick '!f() { git add -A; if git commit -m "$*"; then git push origin main; else echo "Nothing to commit, skipping push."; fi; }; f'
+```
+
+Usage (manual or by AI):
+
+```bash
+git quick "Update rates modal to load from Supabase"
+```
+
+This ensures every change is tracked and pushed without manual steps.
+
+### Git User
+
+```bash
+git config user.name "Brittany Ford"
+git config user.email "brittanyford@Brittanys-MacBook-Pro.local"
+```
+
+## Notes
+- `caselog-code/` and similar backup dirs are ignored.
+- Always pull before major changes: `git pull origin main`
+- For manual commits, use descriptive messages.
+
