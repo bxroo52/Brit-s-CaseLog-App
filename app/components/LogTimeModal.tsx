@@ -1,34 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useState } from 'react';
+import { useAppStore } from '@/stores/useAppStore';
 
 export default function LogTimeModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const [cases, setCases] = useState<any[]>([]);
   const [selectedCase, setSelectedCase] = useState('');
   const [selectedActivity, setSelectedActivity] = useState('Contact');
   const [hours, setHours] = useState('1');
 
-  useEffect(() => {
-    if (!isOpen) return;
-
-    async function loadCases() {
-      if (!supabase) {
-        setCases([]);
-        return;
-      }
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data } = await supabase
-        .from('cases')
-        .select('id, case_number, title')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-      setCases(data || []);
-    }
-    loadCases();
-  }, [isOpen]);
+  const { cases: allCases } = useAppStore();
+  const openCases = allCases.filter((c: any) => c.status === 'Open');
 
   const handleLog = () => {
     console.log('Logging for case:', selectedCase);
@@ -51,9 +32,9 @@ export default function LogTimeModal({ isOpen, onClose }: { isOpen: boolean; onC
               className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 text-lg"
             >
               <option value="">Select a case...</option>
-              {cases.map(c => (
+              {openCases.map((c: any) => (
                 <option key={c.id} value={c.id}>
-                  {c.case_number} - {c.title}
+                  {c.respondentLastName}, {c.respondentFirstName} — {c.caseNumber}
                 </option>
               ))}
             </select>
