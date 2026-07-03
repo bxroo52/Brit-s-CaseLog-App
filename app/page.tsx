@@ -1155,13 +1155,14 @@ export default function CaseLogApp() {
     >
       <div className="flex-1 overflow-y-auto">
         <div 
-          className="min-h-full flex flex-col justify-center px-4 py-8"
+          className="px-4"
           style={{
-            paddingTop: 'max(2rem, env(safe-area-inset-top))',
-            paddingBottom: 'max(2rem, env(safe-area-inset-bottom))'
+            paddingTop: 'max(3rem, env(safe-area-inset-top))',
+            paddingBottom: 'max(4rem, env(safe-area-inset-bottom))'
           }}
         >
-          <div className="w-full max-w-sm mx-auto space-y-6">
+          <div className="max-w-sm mx-auto space-y-6 pt-4">
+            {/* Logo and header - stays near top */}
             <div className="text-center">
               <div className="mx-auto h-12 w-12 rounded-xl bg-foreground text-background flex items-center justify-center mb-4">
                 <FileText className="h-6 w-6" />
@@ -1170,6 +1171,7 @@ export default function CaseLogApp() {
               <p className="text-muted-foreground mt-1">Court Visitor Billing</p>
             </div>
 
+            {/* Scrollable form area */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-center">
@@ -1184,8 +1186,9 @@ export default function CaseLogApp() {
                   className="space-y-4"
                 >
                   <div>
-                    <Label>Email</Label>
+                    <Label htmlFor="email">Email</Label>
                     <Input
+                      id="email"
                       type="email"
                       value={authEmail}
                       onChange={(e) => { setAuthEmail(e.target.value); clearAuthError(); }}
@@ -1201,8 +1204,9 @@ export default function CaseLogApp() {
 
                   {(authView === 'login' || authView === 'signup') && (
                     <div>
-                      <Label>Password</Label>
+                      <Label htmlFor="password">Password</Label>
                       <Input
+                        id="password"
                         type="password"
                         value={authPassword}
                         onChange={(e) => { setAuthPassword(e.target.value); clearAuthError(); }}
@@ -1217,8 +1221,9 @@ export default function CaseLogApp() {
 
                   {authView === 'signup' && (
                     <div>
-                      <Label>Optional UserID / Name</Label>
+                      <Label htmlFor="userid">Optional UserID / Name</Label>
                       <Input
+                        id="userid"
                         value={authUserId}
                         onChange={(e) => { setAuthUserId(e.target.value); clearAuthError(); }}
                         onFocus={scrollInputIntoView}
