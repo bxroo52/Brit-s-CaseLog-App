@@ -2,8 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { Button } from '@/components/ui/button';
+import { Plus } from 'lucide-react';
 
-export default function OpenCasesRealtime() {
+interface OpenCasesRealtimeProps {
+  onNewCase?: () => void;
+  onExport?: () => void;
+}
+
+export default function OpenCasesRealtime({ onNewCase, onExport }: OpenCasesRealtimeProps) {
   const [cases, setCases] = useState<any[]>([]);
 
   // Load initial data
@@ -53,7 +60,19 @@ export default function OpenCasesRealtime() {
 
   return (
     <div>
-      <h2 className="text-xl font-bold mb-4">Open Cases (Live)</h2>
+      <h2 className="text-xl font-bold mb-4">Open Cases</h2>
+      {(onNewCase || onExport) && (
+        <div className="flex gap-2 mb-4">
+          {onNewCase && (
+            <Button onClick={onNewCase} className="gap-2"><Plus /> New Case</Button>
+          )}
+          {onExport && (
+            <Button onClick={onExport} variant="outline" className="gap-2">
+              Export XLSX (by Last Name)
+            </Button>
+          )}
+        </div>
+      )}
       {cases.length === 0 && <p className="text-zinc-400">No open cases.</p>}
       {cases.map(c => {
         const name = c.respondent_name || (c.respondentLastName ? `${c.respondentLastName}, ${c.respondentFirstName || ''}` : '');

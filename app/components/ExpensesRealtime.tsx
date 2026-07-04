@@ -55,7 +55,7 @@ export default function ExpensesRealtime({ optimisticEntries = [], onClearOptimi
 
   return (
     <div className="bg-zinc-900 rounded-2xl p-6">
-      <h3 className="font-bold mb-4">Recent Expenses (Live)</h3>
+      <h3 className="font-bold mb-4">Recent Expenses</h3>
 
       {allExpenses.length === 0 && <p className="text-zinc-400">No expenses logged yet.</p>}
 

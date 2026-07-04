@@ -894,8 +894,8 @@ export default function CaseLogApp() {
   // Dashboard cards
   const Dashboard = () => (
     <div className="space-y-6">
-      {/* Greeting - horizontal, clean single line next to photo */}
-      <div className="flex items-center gap-3">
+      {/* Greeting - photo above the text */}
+      <div className="flex flex-col items-start gap-2">
         {profile?.photoDataUrl ? (
           <img
             src={profile.photoDataUrl}
@@ -994,21 +994,16 @@ export default function CaseLogApp() {
   // Cases view
   const CasesView = () => (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="section-title">Cases</h2>
-          <p className="text-muted-foreground text-sm">Manage who you’re billing. Close them when done.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={openNewCase} className="gap-2"><Plus /> New Case</Button>
-          <Button onClick={() => generateBillingSpreadsheet(filteredCases)} variant="outline" className="gap-2">
-            Export XLSX (by Last Name)
-          </Button>
-        </div>
+      <div className="mb-4">
+        <h2 className="section-title">Cases</h2>
+        <p className="text-muted-foreground text-sm">Manage who you’re billing. Close them when done.</p>
       </div>
 
       {/* Realtime Open Cases */}
-      <OpenCasesRealtime />
+      <OpenCasesRealtime 
+        onNewCase={openNewCase} 
+        onExport={() => generateBillingSpreadsheet(filteredCases)} 
+      />
 
       {/* Filters */}
       <div className="mb-3">

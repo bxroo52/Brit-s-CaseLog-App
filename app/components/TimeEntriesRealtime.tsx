@@ -90,7 +90,7 @@ export default function TimeEntriesRealtime({ optimisticEntries = [], onClearOpt
   return (
     <>
       <div className="bg-zinc-900 rounded-2xl p-6">
-        <h3 className="font-bold mb-4">Recent Time (Live)</h3>
+        <h3 className="font-bold mb-4">Recent Time</h3>
 
         {allEntries.length === 0 && <p className="text-zinc-400">No time logged yet.</p>}
 
