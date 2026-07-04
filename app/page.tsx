@@ -64,7 +64,7 @@ import { getRecentMonths, formatMonth, formatCurrency, formatHours, formatDate }
 import { generateCaseInvoicePDF, generateFullBillingPackagePDF } from '@/lib/generateInvoice';
 import { ASSIGNMENT_TYPES, ACTIVITY_TYPES } from '@/lib/constants';
 import CaseSelector from '@/components/CaseSelector';
-import { buildMonthlyBillingSummary } from '@/lib/db';
+import { buildMonthlyBillingSummary, roundToNearestTenth } from '@/lib/db';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { Case, TimeEntry, Expense, UserProfile, NewCaseFormData } from '@/types';
 
@@ -1307,67 +1307,72 @@ export default function CaseLogApp() {
     const [calendarFrom, setCalendarFrom] = useState('');
     const [calendarTo, setCalendarTo] = useState('');
 
-    // Timer state
-    const [committedHours, setCommittedHours] = useState(0);
+    // Timer state: precise stopwatch in seconds
+    const [elapsedSeconds, setElapsedSeconds] = useState(0);
     const [isRunning, setIsRunning] = useState(false);
-    const [startTime, setStartTime] = useState<Date | null>(null);
-    const [liveAddHours, setLiveAddHours] = useState(0);
+    const [timerStart, setTimerStart] = useState<Date | null>(null);
 
-    // Live update interval
+    // Live update interval for stopwatch (accurate seconds)
     useEffect(() => {
       let interval: NodeJS.Timeout | null = null;
-      if (isRunning && startTime) {
+      if (isRunning && timerStart) {
         interval = setInterval(() => {
-          const elapsed = (Date.now() - startTime.getTime()) / 1000 / 60 / 60;
-          setLiveAddHours(Math.round(elapsed * 10) / 10);
-        }, 1000);
-      } else {
-        setLiveAddHours(0);
+          const elapsed = Math.floor((Date.now() - timerStart.getTime()) / 1000);
+          setElapsedSeconds(elapsed);
+        }, 250); // smooth updates
       }
       return () => {
         if (interval) clearInterval(interval);
       };
-    }, [isRunning, startTime]);
+    }, [isRunning, timerStart]);
 
-    const currentHours = Math.round((committedHours + liveAddHours) * 10) / 10;
+    const formatStopwatch = (secs: number) => {
+      const h = Math.floor(secs / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      const s = secs % 60;
+      if (h > 0) {
+        return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+      }
+      return `${m}:${s.toString().padStart(2, '0')}`;
+    };
+
+    const billedHours = roundToNearestTenth(elapsedSeconds / 3600);
 
     const startTimer = () => {
       if (!isRunning) {
-        setStartTime(new Date());
+        // Resume support: compute start from current elapsed if resuming
+        const now = Date.now();
+        const adjustedStart = timerStart || new Date(now - elapsedSeconds * 1000);
+        setTimerStart(adjustedStart);
         setIsRunning(true);
-        setLiveAddHours(0);
       }
     };
 
     const stopTimer = () => {
-      if (isRunning && startTime) {
-        const elapsed = (Date.now() - startTime.getTime()) / 1000 / 60 / 60;
-        const newCommitted = Math.round((committedHours + elapsed) * 10) / 10;
-        setCommittedHours(newCommitted);
+      if (isRunning) {
         setIsRunning(false);
-        setStartTime(null);
-        setLiveAddHours(0);
+        // elapsedSeconds and timerStart kept for final billedHours
       }
     };
 
     const resetTimer = () => {
       setIsRunning(false);
-      setStartTime(null);
-      setLiveAddHours(0);
-      setCommittedHours(0);
+      setTimerStart(null);
+      setElapsedSeconds(0);
     };
 
     const addQuickTime = (add: number) => {
       if (isRunning) {
         stopTimer();
       }
-      const newCommitted = Math.round((committedHours + add) * 10) / 10;
-      setCommittedHours(Math.max(0, newCommitted));
+      const additionalSeconds = Math.round(add * 3600);
+      setElapsedSeconds(prev => Math.max(0, prev + additionalSeconds));
     };
 
     const setManualHours = (val: number) => {
       if (isRunning) stopTimer();
-      setCommittedHours(Math.max(0, Math.round(val * 10) / 10));
+      const secs = Math.round(val * 3600);
+      setElapsedSeconds(Math.max(0, secs));
     };
 
     const handleLogTime = async () => {
@@ -1375,7 +1380,7 @@ export default function CaseLogApp() {
         toast.error('Please select a case');
         return;
       }
-      if (currentHours <= 0) {
+      if (billedHours <= 0) {
         toast.error('Hours must be greater than 0');
         return;
       }
@@ -1384,12 +1389,17 @@ export default function CaseLogApp() {
         return;
       }
 
+      // Stop timer if still running before logging
+      if (isRunning) {
+        stopTimer();
+      }
+
       try {
         await addTimeEntry({
           caseId: selectedCaseId,
           date,
           activityType,
-          billableHours: currentHours,
+          billableHours: billedHours,
           description: notes.trim(),
         });
 
@@ -1412,13 +1422,13 @@ export default function CaseLogApp() {
           <p className="text-sm text-muted-foreground">Track time for a case. Start the timer or enter duration manually.</p>
         </div>
 
-        {/* Current Duration */}
+        {/* Current Duration - real-time stopwatch in seconds */}
         <div className="text-center p-6 bg-zinc-900 rounded-3xl">
-          <div className="text-sm text-muted-foreground mb-1">Current Duration</div>
-          <div className="text-6xl font-light tabular-nums tracking-tighter">{currentHours.toFixed(1)}</div>
-          <div className="text-sm text-muted-foreground">hours (0.1 increments)</div>
+          <div className="text-sm text-muted-foreground mb-1">Stopwatch</div>
+          <div className="text-6xl font-light tabular-nums tracking-tighter font-mono">{formatStopwatch(elapsedSeconds)}</div>
+          <div className="text-sm text-muted-foreground mt-1">Billed: {billedHours.toFixed(1)} h (rounded to 0.1)</div>
           {isRunning && (
-            <div className="mt-2 text-green-400 text-xs animate-pulse">● Timer running</div>
+            <div className="mt-2 text-green-400 text-xs animate-pulse">● Running — counting seconds</div>
           )}
         </div>
 
@@ -1473,11 +1483,12 @@ export default function CaseLogApp() {
               type="number"
               step="0.1"
               min="0"
-              value={committedHours || ''}
+              value={(elapsedSeconds / 3600).toFixed(1)}
               onChange={(e) => {
                 const v = parseFloat(e.target.value) || 0;
                 setManualHours(v);
               }}
+              disabled={isRunning}
               className="text-2xl h-14 text-center"
               placeholder="0.0"
             />
@@ -1547,7 +1558,8 @@ export default function CaseLogApp() {
                 const to = new Date(calendarTo);
                 const diffH = (to.getTime() - from.getTime()) / 1000 / 60 / 60;
                 const rounded = Math.max(0, Math.round(diffH * 10) / 10);
-                setCommittedHours(rounded);
+                const secs = Math.round(rounded * 3600);
+                setElapsedSeconds(secs);
                 setDate(from.toISOString().split('T')[0]);
                 if (isRunning) stopTimer();
                 toast.info(`Set ${rounded}h from calendar times.`);
@@ -1564,10 +1576,10 @@ export default function CaseLogApp() {
         <div className="pt-2 space-y-3">
           <Button
             onClick={handleLogTime}
-            disabled={!selectedCaseId || currentHours <= 0 || !notes.trim()}
+            disabled={!selectedCaseId || billedHours <= 0 || !notes.trim() || isRunning}
             className="w-full h-14 text-lg"
           >
-            Log {currentHours.toFixed(1)}h Time Entry
+            Log {billedHours.toFixed(1)}h Time Entry
           </Button>
 
           <Button
@@ -1578,6 +1590,8 @@ export default function CaseLogApp() {
               setActivityType('Contact');
               setNotes('');
               setDate(new Date().toISOString().split('T')[0]);
+              setCalendarFrom('');
+              setCalendarTo('');
             }}
             className="w-full"
           >
