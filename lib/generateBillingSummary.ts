@@ -184,8 +184,6 @@ export function generateDetailedInvoiceExcel(
     const projectCode = c.caseNumber || '';
     let caseHours = 0;
     let caseAmount = 0;
-    let caseRate: number | null = null;
-    let rateUniform = true;
 
     group.entries.forEach((t: any) => {
       const hours = Number(t.billableHoursRounded || t.billableHours || 0);
@@ -213,31 +211,29 @@ export function generateDetailedInvoiceExcel(
 
       caseHours += hours;
       caseAmount += amt;
-      if (caseRate === null) {
-        caseRate = rate;
-      } else if (caseRate !== rate) {
-        rateUniform = false;
-      }
     });
 
-    // TOTAL row for the case (mimics sample layout)
-    const rateForTotal = rateUniform && caseRate !== null ? caseRate : '';
-    dataRows.push(['', '', '', '', 'TOTAL', caseHours, rateForTotal, caseAmount]);
+    // TOTAL / subtotal row for the case (exact match to Dec_2025 sample: no 'TOTAL' label, blanks in rate col)
+    dataRows.push(['', '', '', '', '', caseHours, '', caseAmount]);
     dataRows.push([]); // blank separator like sample
 
     grandHours += caseHours;
     grandAmount += caseAmount;
   });
 
-  // Final grand totals row (like sample end)
+  // Final grand totals row (exact match to sample)
   dataRows.push(['', '', '', '', '', grandHours, '', grandAmount]);
 
-  const title = `${contractorName} Invoice ${monthLabel}`;
+  // First row mimics the attached Dec_2025 sample: Excel serial date for month start + 'Invoice' + name
+  const firstOfMonth = new Date(billingMonth + '-01');
+  const excelDateSerial = Math.floor( (firstOfMonth.getTime() - new Date(Date.UTC(1899, 11, 30)).getTime()) / 86400000 );
   const aoa: any[][] = [
-    [title, '', '', '', '', '', '', ''],
+    [excelDateSerial, 'Invoice', contractorName, '', '', '', '', ''],
     ['', '', '', '', '', '', '', ''],
     ['', '', '', '', '', '', '', ''],
-    ['Date', 'Project', 'Project Code', 'Task', 'Notes', 'Hours', 'Rate', 'Amount'],
+    ['Date', 'Project', 'Project Code', 'Task', 'Notes', 'Hours', 'Billable Rate', 'Billable Amount'],
+    ['', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', ''],
     ...dataRows,
   ];
 
