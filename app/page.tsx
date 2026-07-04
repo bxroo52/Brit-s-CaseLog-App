@@ -22,6 +22,7 @@ import LogExpenseModal from '@/app/components/LogExpenseModal';
 import ExpensesRealtime from '@/app/components/ExpensesRealtime';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -61,12 +62,13 @@ import { toast } from '@/app/components/Toast';
 import { format, parseISO } from 'date-fns';
 import { getRecentMonths, formatMonth, formatCurrency, formatHours, formatDate } from '@/lib/format';
 import { generateCaseInvoicePDF, generateFullBillingPackagePDF } from '@/lib/generateInvoice';
-import { ASSIGNMENT_TYPES } from '@/lib/constants';
+import { ASSIGNMENT_TYPES, ACTIVITY_TYPES } from '@/lib/constants';
+import CaseSelector from '@/components/CaseSelector';
 import { buildMonthlyBillingSummary } from '@/lib/db';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { Case, TimeEntry, Expense, UserProfile, NewCaseFormData } from '@/types';
 
-type View = 'dashboard' | 'cases' | 'time' | 'expenses' | 'billing' | 'account';
+type View = 'dashboard' | 'cases' | 'time' | 'timer' | 'expenses' | 'billing' | 'account';
 
 interface LoginScreenProps {
   signIn: (email: string, password: string) => Promise<void>;
@@ -1295,6 +1297,285 @@ export default function CaseLogApp() {
     </div>
   );
 
+  const TimerView = () => {
+    const openCases = cases.filter((c: any) => c.status === 'Open');
+
+    const [selectedCaseId, setSelectedCaseId] = useState('');
+    const [activityType, setActivityType] = useState('Contact');
+    const [notes, setNotes] = useState('');
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+    // Timer state: base + live
+    const [baseHours, setBaseHours] = useState(0);
+    const [isRunning, setIsRunning] = useState(false);
+    const [startTime, setStartTime] = useState<Date | null>(null);
+    const [liveHours, setLiveHours] = useState(0);
+
+    // Live update interval
+    useEffect(() => {
+      let interval: NodeJS.Timeout | null = null;
+      if (isRunning && startTime) {
+        interval = setInterval(() => {
+          const elapsed = (Date.now() - startTime.getTime()) / 1000 / 60 / 60;
+          setLiveHours(Math.round(elapsed * 10) / 10);
+        }, 1000);
+      } else {
+        setLiveHours(0);
+      }
+      return () => {
+        if (interval) clearInterval(interval);
+      };
+    }, [isRunning, startTime]);
+
+    const currentHours = Math.round((baseHours + liveHours) * 10) / 10;
+
+    const startTimer = () => {
+      if (!isRunning) {
+        setStartTime(new Date());
+        setIsRunning(true);
+        setLiveHours(0);
+      }
+    };
+
+    const stopTimer = () => {
+      if (isRunning && startTime) {
+        const elapsed = (Date.now() - startTime.getTime()) / 1000 / 60 / 60;
+        const newBase = Math.round((baseHours + elapsed) * 10) / 10;
+        setBaseHours(newBase);
+        setIsRunning(false);
+        setStartTime(null);
+        setLiveHours(0);
+      }
+    };
+
+    const resetTimer = () => {
+      setIsRunning(false);
+      setStartTime(null);
+      setLiveHours(0);
+      setBaseHours(0);
+    };
+
+    const addQuickTime = (add: number) => {
+      if (isRunning) {
+        stopTimer();
+      }
+      const newBase = Math.round((baseHours + add) * 10) / 10;
+      setBaseHours(Math.max(0, newBase));
+    };
+
+    const setManualHours = (val: number) => {
+      if (isRunning) stopTimer();
+      setBaseHours(Math.max(0, Math.round(val * 10) / 10));
+    };
+
+    const handleLogTime = async () => {
+      if (!selectedCaseId) {
+        toast.error('Please select a case');
+        return;
+      }
+      if (currentHours <= 0) {
+        toast.error('Hours must be greater than 0');
+        return;
+      }
+      if (!notes.trim()) {
+        toast.error('Description / notes is required');
+        return;
+      }
+
+      try {
+        await addTimeEntry({
+          caseId: selectedCaseId,
+          date,
+          activityType,
+          billableHours: currentHours,
+          description: notes.trim(),
+        });
+
+        // Success handled by store toast
+        // Reset form
+        setSelectedCaseId('');
+        setActivityType('Contact');
+        setNotes('');
+        setDate(new Date().toISOString().split('T')[0]);
+        resetTimer();
+      } catch (err) {
+        // error toasted in store
+      }
+    };
+
+    return (
+      <div className="max-w-md mx-auto space-y-6 pb-8">
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight">Timer</h2>
+          <p className="text-sm text-muted-foreground">Track time for a case. Start the timer or enter duration manually.</p>
+        </div>
+
+        {/* Current Duration */}
+        <div className="text-center p-6 bg-zinc-900 rounded-3xl">
+          <div className="text-sm text-muted-foreground mb-1">Current Duration</div>
+          <div className="text-6xl font-light tabular-nums tracking-tighter">{currentHours.toFixed(1)}</div>
+          <div className="text-sm text-muted-foreground">hours (0.1 increments)</div>
+          {isRunning && (
+            <div className="mt-2 text-green-400 text-xs animate-pulse">● Timer running</div>
+          )}
+        </div>
+
+        {/* Timer Controls */}
+        <div className="space-y-3">
+          {!isRunning ? (
+            <Button
+              onClick={startTimer}
+              className="w-full h-16 text-xl bg-green-600 hover:bg-green-700 text-white font-semibold rounded-2xl"
+            >
+              ▶ Start Timer
+            </Button>
+          ) : (
+            <Button
+              onClick={stopTimer}
+              className="w-full h-16 text-xl bg-red-600 hover:bg-red-700 text-white font-semibold rounded-2xl"
+            >
+              ■ Stop Timer
+            </Button>
+          )}
+
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={resetTimer} className="flex-1">Reset</Button>
+            <Button variant="outline" onClick={() => addQuickTime(-0.1)} className="flex-1">-0.1</Button>
+            <Button variant="outline" onClick={() => addQuickTime(0.1)} className="flex-1">+0.1</Button>
+          </div>
+        </div>
+
+        {/* Quick Add */}
+        <div>
+          <div className="text-sm font-medium mb-2 text-muted-foreground">Quick Add</div>
+          <div className="grid grid-cols-4 gap-2">
+            {[0.25, 0.5, 1, 2, 4, 8].map((h) => (
+              <Button
+                key={h}
+                variant="secondary"
+                size="sm"
+                onClick={() => addQuickTime(h)}
+                className="text-xs py-4"
+              >
+                +{h} h {h === 0.25 && '(15m)'}{h === 0.5 && '(30m)'}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Manual Entry */}
+        <div>
+          <label className="text-sm font-medium mb-1.5 block">Manual Hours</label>
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              step="0.1"
+              min="0"
+              value={currentHours || ''}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value) || 0;
+                setManualHours(v);
+              }}
+              className="text-2xl h-14 text-center"
+              placeholder="0.0"
+            />
+            <span className="text-muted-foreground">h</span>
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-1">Enter or adjust duration in 0.1h steps</div>
+        </div>
+
+        {/* Case & Activity */}
+        <div className="space-y-4">
+          <CaseSelector
+            selectedCaseId={selectedCaseId}
+            onChange={setSelectedCaseId}
+            cases={openCases}
+          />
+
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1.5">Activity Type</label>
+            <select
+              value={activityType}
+              onChange={(e) => setActivityType(e.target.value)}
+              className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 text-base"
+            >
+              {ACTIVITY_TYPES.map(a => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1.5">Date</label>
+            <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1.5">Notes / Description</label>
+            <Textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="What work was done?"
+              className="min-h-[80px]"
+            />
+          </div>
+        </div>
+
+        {/* Calendar option (basic) */}
+        <div className="p-3 bg-zinc-900/50 rounded-2xl text-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-medium">Create from calendar</div>
+              <div className="text-xs text-muted-foreground">Pick a past event or meeting time</div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                // Simple: set date to today or prompt
+                const d = prompt('Enter date (YYYY-MM-DD) or leave for today', date);
+                if (d) setDate(d);
+                else setDate(new Date().toISOString().split('T')[0]);
+                toast.info('Date updated. Add details and log.');
+              }}
+            >
+              Choose
+            </Button>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="pt-2 space-y-3">
+          <Button
+            onClick={handleLogTime}
+            disabled={!selectedCaseId || currentHours <= 0 || !notes.trim()}
+            className="w-full h-14 text-lg"
+          >
+            Log {currentHours.toFixed(1)}h Time Entry
+          </Button>
+
+          <Button
+            variant="ghost"
+            onClick={() => {
+              resetTimer();
+              setSelectedCaseId('');
+              setActivityType('Contact');
+              setNotes('');
+              setDate(new Date().toISOString().split('T')[0]);
+            }}
+            className="w-full"
+          >
+            Clear Form
+          </Button>
+        </div>
+
+        <div className="text-[10px] text-center text-muted-foreground">
+          Time will be rounded to nearest 0.1h and saved via the standard Log Time flow.
+        </div>
+      </div>
+    );
+  };
+
   const ExpensesView = () => (
     <div>
       <div className="flex justify-between mb-4">
@@ -1658,6 +1939,7 @@ export default function CaseLogApp() {
         {activeView === 'dashboard' && <Dashboard />}
         {activeView === 'cases' && <CasesView />}
         {activeView === 'time' && <TimeView />}
+        {activeView === 'timer' && <TimerView />}
         {activeView === 'expenses' && <ExpensesView />}
         {activeView === 'billing' && <BillingView />}
         {activeView === 'account' && <AccountView />}
