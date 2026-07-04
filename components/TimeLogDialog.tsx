@@ -144,14 +144,14 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
     syncAndUpdate(); // initial
 
     const timer = getActiveTimer();
-    if (timer.isRunning || timer.elapsedAtStop) {
+    if (timer.isRunning) {
       interval = setInterval(syncAndUpdate, 1000);
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [form.caseId, form.activityType, open]); // re-sub on relevant changes
+  }, [form.caseId, form.activityType, open, isTiming]); // include isTiming to re-eval interval on pause/resume
 
   const toggleTimer = () => {
     const active = getActiveTimer();
@@ -171,9 +171,14 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
       toast.info('Timer started. Go do the thing.');
     } else {
       const elapsedSec = storeStopTimer();
-      const rounded = getBilledHours(); // uses always round UP (Math.ceil) to nearest 0.1 from store
+      const rounded = getBilledHours();
       setForm((f) => ({ ...f, billableHours: rounded }));
       setIsTiming(false);
+      // Immediately freeze display
+      const h = Math.floor(elapsedSec / 3600);
+      const m = Math.floor((elapsedSec % 3600) / 60);
+      const s = elapsedSec % 60;
+      setDisplayElapsed(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
       toast.success(`Timer stopped. ${rounded.toFixed(1)}h (rounded UP) ready to log.`);
     }
   };
@@ -293,7 +298,28 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <Label>Billable Hours</Label>
-              {!isTiming ? (
+              {isTiming ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={toggleTimer}
+                  className="gap-1.5 h-8 text-xs"
+                >
+                  <Square className="h-3 w-3" /> Pause Timer
+                </Button>
+              ) : (getActiveTimer().elapsedAtStop || form.billableHours > 0) ? (
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  onClick={toggleTimer}
+                  disabled={!form.caseId || !form.activityType}
+                  className="gap-1.5 h-8 text-xs bg-green-600 hover:bg-green-700"
+                >
+                  <Play className="h-3 w-3" /> Resume Timer
+                </Button>
+              ) : (
                 <Button
                   type="button"
                   variant="default"
@@ -304,25 +330,17 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
                 >
                   <Play className="h-3 w-3" /> Start Timer
                 </Button>
-              ) : (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  onClick={toggleTimer}
-                  className="gap-1.5 h-8 text-xs"
-                >
-                  <Square className="h-3 w-3" /> Stop Timer
-                </Button>
               )}
             </div>
 
-            {isTiming ? (
+            {isTiming || displayElapsed !== '00:00:00' ? (
               <div className="p-4 bg-zinc-900 rounded-2xl text-center">
                 <div className="text-4xl font-mono tabular-nums tracking-[2px] font-semibold">
                   {displayElapsed}
                 </div>
-                <div className="text-xs text-green-400 mt-1">RUNNING • will round UP to nearest 0.1h on stop</div>
+                <div className="text-xs text-green-400 mt-1">
+                  {isTiming ? 'RUNNING • will round UP to nearest 0.1h on stop' : 'PAUSED • frozen display'}
+                </div>
               </div>
             ) : (
               <div className="flex items-center gap-2">

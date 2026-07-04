@@ -1319,7 +1319,7 @@ export default function CaseLogApp() {
         interval = setInterval(() => {
           const elapsed = Math.floor((Date.now() - timerStart.getTime()) / 1000);
           setElapsedSeconds(elapsed);
-        }, 250); // smooth updates
+        }, 250);
       }
       return () => {
         if (interval) clearInterval(interval);
@@ -1336,27 +1336,25 @@ export default function CaseLogApp() {
       return `${m}:${s.toString().padStart(2, '0')}`;
     };
 
-    const billedHours = roundToNearestTenth(elapsedSeconds / 3600);
-
-    const recentEntries = (timeEntries || [])
-      .filter((t: any) => !selectedCaseId || t.caseId === selectedCaseId)
-      .sort((a: any, b: any) => b.date.localeCompare(a.date))
-      .slice(0, 5);
+    const billedHours = Math.ceil(elapsedSeconds / 3600 * 10) / 10;
 
     const startTimer = () => {
       if (!isRunning) {
-        // Resume support: compute start from current elapsed if resuming
+        // Resume: adjust start from current (frozen during pause) elapsed
         const now = Date.now();
-        const adjustedStart = timerStart || new Date(now - elapsedSeconds * 1000);
+        const adjustedStart = new Date(now - elapsedSeconds * 1000);
         setTimerStart(adjustedStart);
         setIsRunning(true);
       }
     };
 
     const stopTimer = () => {
-      if (isRunning) {
+      if (isRunning && timerStart) {
+        const exact = Math.floor((Date.now() - timerStart.getTime()) / 1000);
+        setElapsedSeconds(exact);
         setIsRunning(false);
-        // elapsedSeconds and timerStart kept for final billedHours
+      } else if (isRunning) {
+        setIsRunning(false);
       }
     };
 
@@ -1367,11 +1365,9 @@ export default function CaseLogApp() {
     };
 
     const addQuickTime = (add: number) => {
-      if (isRunning) {
-        stopTimer();
-      }
-      const additionalSeconds = Math.round(add * 3600);
-      setElapsedSeconds(prev => Math.max(0, prev + additionalSeconds));
+      if (isRunning) stopTimer();
+      const secs = Math.round(add * 3600);
+      setElapsedSeconds(prev => Math.max(0, prev + secs));
     };
 
     const setManualHours = (val: number) => {
@@ -1394,10 +1390,7 @@ export default function CaseLogApp() {
         return;
       }
 
-      // Stop timer if still running before logging
-      if (isRunning) {
-        stopTimer();
-      }
+      if (isRunning) stopTimer();
 
       try {
         await addTimeEntry({
@@ -1407,17 +1400,12 @@ export default function CaseLogApp() {
           billableHours: billedHours,
           description: notes.trim(),
         });
-
-        // Success handled by store toast
-        // Reset form
         setSelectedCaseId('');
         setActivityType('Contact');
         setNotes('');
         setDate(new Date().toISOString().split('T')[0]);
         resetTimer();
-      } catch (err) {
-        // error toasted in store
-      }
+      } catch (err) {}
     };
 
     return (
@@ -1595,50 +1583,6 @@ export default function CaseLogApp() {
           >
             Calculate duration from times
           </Button>
-        </div>
-
-        {/* Recent Time Entry History (explore/edit from Timer tab) */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-muted-foreground">
-              Recent Entries {selectedCaseId ? ' (this case)' : ''}
-            </h3>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="text-xs h-6 px-2"
-              onClick={() => setActiveView('time')}
-            >
-              View all →
-            </Button>
-          </div>
-          {recentEntries.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-2">No past entries yet for this selection.</p>
-          ) : (
-            <div className="space-y-1 text-sm">
-              {recentEntries.map((t: any) => {
-                const c = getCaseById(t.caseId);
-                const name = c ? `${c.respondentLastName || ''}, ${c.respondentFirstName || ''}` : 'Unknown';
-                return (
-                  <div key={t.id} className="flex items-center justify-between bg-zinc-900/60 rounded-xl px-3 py-1.5">
-                    <div className="truncate pr-2">
-                      <span className="font-mono text-xs text-muted-foreground">{t.date}</span>
-                      {' '}{name} — {t.activityType} <span className="font-mono">{(t.billableHoursRounded ?? t.billableHours).toFixed(1)}h</span>
-                      {t.description && <span className="text-xs text-muted-foreground ml-1">· {t.description.slice(0,30)}</span>}
-                    </div>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-6 w-6" 
-                      onClick={() => editTimeEntry(t)}
-                    >
-                      <Edit2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
 
         {/* Actions */}

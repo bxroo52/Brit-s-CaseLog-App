@@ -533,10 +533,16 @@ export const useAppStore = create<AppState>()(
       // ---- Timer (Log Time stopwatch, one at a time, persisted) ----
       startTimer: (caseId, activityType) => {
         const now = Date.now();
+        const timer = get().activeTimer;
+        let adjustedTimestamp = now;
+        if (timer.elapsedAtStop && timer.elapsedAtStop > 0) {
+          // Resume: backdate the start so elapsed calc continues from paused time
+          adjustedTimestamp = now - timer.elapsedAtStop * 1000;
+        }
         set((state) => ({
           activeTimer: {
             isRunning: true,
-            startTimestamp: now,
+            startTimestamp: adjustedTimestamp,
             elapsedAtStop: null,
             caseId,
             activityType,
