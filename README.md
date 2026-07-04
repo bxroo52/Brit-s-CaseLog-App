@@ -60,7 +60,12 @@ When you come back online:
    NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=ey...
    ```
-3. Run this SQL in the Supabase SQL Editor (creates tables + basic RLS):
+3. **Important for instant sign-up (no email confirmation):**  
+   In your Supabase Dashboard, go to Authentication > Providers > Email,  
+   and **disable "Enable email confirmations"**.  
+   This makes new user sign-ups instant (user is logged in immediately).
+
+4. Run this SQL in the Supabase SQL Editor (creates tables + basic RLS):
 
 ```sql
 -- Core tables (matches Dexie models)
@@ -126,7 +131,7 @@ create policy "Users can CRUD their own cases"
 -- Make sure to add user_id column and update your RLS policies for data isolation.
 ```
 
-4. Restart dev server. Sync controls appear in Settings.
+5. Restart dev server. Sync controls appear in Settings.
 
 **Alternative:** For near-zero backend code you can switch to **Dexie Cloud** (dexie-cloud-addon). See comments in `lib/sync.ts`.
 

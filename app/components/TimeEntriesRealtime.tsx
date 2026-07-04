@@ -111,7 +111,7 @@ export default function TimeEntriesRealtime({ optimisticEntries = [], onClearOpt
 
               <div className="flex items-center gap-3">
                 <div className="text-right">
-                  <div className="font-semibold">${((entry.hours || 0) * (entry.rate || 50)).toFixed(2)}</div>
+                  <div className="font-semibold">${(entry.amount ?? entry.totalAmount ?? ((entry.hours || 0) * (entry.rate || 50))).toFixed(2)}</div>
                 </div>
 
                 {!isOptimistic && (

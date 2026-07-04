@@ -404,7 +404,8 @@ export const useAppStore = create<AppState>()(
 
         // Use activity rate (never case rate for time logging now)
         const rate = get().getActivityRate(data.activityType);
-        const amount = calculateAmount(rounded, rate);
+        const providedAmount = (data as any).amount ?? (data as any).totalAmount;
+        const amount = providedAmount !== undefined ? providedAmount : calculateAmount(rounded, rate);
         const currentUserId = get().user?.id;
 
         const newEntry = {
@@ -456,18 +457,24 @@ export const useAppStore = create<AppState>()(
             const isActivityChanging = !!updates.activityType && updates.activityType !== existing?.activityType;
             const rate = isActivityChanging ? get().getActivityRate(newAct) : (existing?.activityRate ?? existing?.hourlyRate ?? get().getActivityRate(newAct));
             const rounded = roundToNearestTenth(hours);
+            const computedAmount = calculateAmount(rounded, rate);
+            const providedAmount = updates.amount !== undefined ? updates.amount : (updates.totalAmount !== undefined ? updates.totalAmount : undefined);
             finalUpdates = {
               ...finalUpdates,
               activityType: newAct,
               billableHours: hours,
               billableHoursRounded: rounded,
               hourlyRate: rate,
-              amount: calculateAmount(rounded, rate),
+              amount: providedAmount !== undefined ? providedAmount : computedAmount,
               activityRate: rate,
-              totalAmount: calculateAmount(rounded, rate),
+              totalAmount: providedAmount !== undefined ? providedAmount : computedAmount,
               isOpenCourt: (updates as any).isOpenCourt ?? (newAct === 'Court'),
             } as any;
           }
+        } else if (updates.amount !== undefined || updates.totalAmount !== undefined) {
+          // Allow amount override even if hours/activity not changed
+          if (updates.amount !== undefined) finalUpdates.amount = updates.amount;
+          if (updates.totalAmount !== undefined) finalUpdates.totalAmount = updates.totalAmount;
         }
         const updated = await updateTimeEntry(id, finalUpdates);
         set((state) => ({
@@ -673,10 +680,11 @@ export const useAppStore = create<AppState>()(
           });
           if (error) throw error;
 
-          // When "Confirm email" is disabled in Supabase project settings,
-          // signUp returns a session and the user can be logged in immediately.
-          if (data.session?.user) {
-            set({ user: data.session.user, isAuthenticated: true });
+          // Sign-up is configured to be instant (no email confirmation required).
+          // Supabase will return a session immediately when email confirmations are disabled.
+          const user = data.session?.user || data.user;
+          if (user) {
+            set({ user, isAuthenticated: true });
             if (userId) {
               await get().saveProfile({ name: userId });
             }
@@ -685,17 +693,14 @@ export const useAppStore = create<AppState>()(
             await get().loadAllData();
             await get().loadProfile();
             toast.success('Account created and logged in!');
-          } else if (data.user) {
-            // Email confirmation still required by project settings.
-            // Do not mark as authenticated yet.
-            if (userId) {
-              await get().saveProfile({ name: userId });
-            }
-            toast.success('Account created! Check your email to confirm, then sign in.');
           }
         } catch (e: any) {
-          toast.error(e.message || 'Sign up failed.');
-          throw e;
+          let msg = e.message || 'Sign up failed.';
+          const lower = msg.toLowerCase();
+          if (lower.includes('rate limit') || lower.includes('too many') || lower.includes('email rate')) {
+            msg = 'Too many attempts. Please wait a moment and try again.';
+          }
+          throw new Error(msg);
         }
       },
 

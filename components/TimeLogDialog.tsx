@@ -55,6 +55,9 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
   const [timerStart, setTimerStart] = useState<Date | null>(null);
   const [liveHours, setLiveHours] = useState(0);
 
+  // Allow manual override of estimated/calculated bill amount (for edit)
+  const [billAmount, setBillAmount] = useState<string>('');
+
   // Activity rate: for new use current settings; for edit, prefer historical snapshot if activity unchanged
   const effectiveActivity = form.activityType || 'Contact';
   const currentActivityRate = getActivityRate(effectiveActivity);
@@ -62,7 +65,8 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
     ? (existingEntry.activityRate ?? existingEntry.hourlyRate) 
     : null;
   const displayRate = historicalRate ?? currentActivityRate;
-  const estimatedBill = (form.billableHours || 0) * displayRate;
+  const calculatedBill = (form.billableHours || 0) * displayRate;
+  const finalBillAmount = billAmount !== '' ? parseFloat(billAmount) : calculatedBill;
 
   // Per Alaska Court Visitor billing regulations (ADM-121 form for visitor fees):
   // - Itemize time with date, brief description, hours in tenths of hours.
@@ -91,8 +95,11 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
         description: existingEntry.description,
         isOpenCourt: existingEntry.isOpenCourt ?? (existingEntry.activityType === 'Court'),
       });
+      const existingBill = existingEntry.totalAmount ?? existingEntry.amount;
+      setBillAmount(existingBill !== undefined ? existingBill.toString() : '');
     } else if (defaultCaseId) {
       setForm((f) => ({ ...f, caseId: defaultCaseId }));
+      setBillAmount('');
     }
   }, [existingEntry, defaultCaseId]);
 
@@ -144,18 +151,24 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
       return;
     }
 
+    const finalBill = finalBillAmount;
+
     try {
       if (existingEntry) {
         await editTimeEntry(existingEntry.id, {
           ...form,
           billableHours: form.billableHours,
+          amount: finalBill,
+          totalAmount: finalBill,
         } as any);
         toast.success('Time entry updated.');
       } else {
         await addTimeEntry({
           ...form,
           billableHours: form.billableHours,
-        });
+          amount: finalBill,
+          totalAmount: finalBill,
+        } as any);
         toast.success('Logged. Tiny logs beat giant catch-up sessions.');
       }
       onOpenChange(false);
@@ -178,6 +191,7 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
     setIsTiming(false);
     setTimerStart(null);
     setLiveHours(0);
+    setBillAmount('');
   };
 
   return (
@@ -261,13 +275,20 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
             <Label htmlFor="openCourt" className="text-sm cursor-pointer">This time was spent in open court</Label>
           </div>
 
-          {/* Estimated Bill using Activity Rate - auto updates, read-only */}
+          {/* Estimated Bill - now editable to allow manual override of calculated amount */}
           <div>
             <Label>Estimated Bill</Label>
-            <div className="mt-1.5 px-3 py-2 rounded-md border bg-muted/30 font-mono text-sm tabular-nums">
-              {formatCurrency(estimatedBill)}
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Billable Hours × Activity Rate (from your Activity Rates settings)</p>
+            <Input
+              type="number"
+              step="0.01"
+              value={billAmount !== '' ? billAmount : calculatedBill.toFixed(2)}
+              onChange={(e) => setBillAmount(e.target.value)}
+              className="mt-1.5"
+            />
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              {billAmount !== '' ? 'Manually overridden' : 'Billable Hours × Activity Rate (from your Activity Rates settings)'}
+              {billAmount !== '' && ` (calc: ${formatCurrency(calculatedBill)})`}
+            </p>
           </div>
 
           <div>

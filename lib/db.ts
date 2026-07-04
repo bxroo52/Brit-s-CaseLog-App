@@ -197,6 +197,7 @@ export async function updateTimeEntry(id: string, updates: Partial<TimeEntry>): 
     let newData = { ...existing, ...updates };
 
     // Recompute rounded, amount if hours/date/rate changed. Use activityRate if present.
+    // But respect explicitly provided amount (for user override of estimated bill)
     if (updates.billableHours !== undefined || updates.date !== undefined || updates.hourlyRate !== undefined || updates.activityRate !== undefined) {
       const rounded = roundToNearestTenth(newData.billableHours);
       const billingMonth = getBillingMonth(newData.date);
@@ -205,10 +206,17 @@ export async function updateTimeEntry(id: string, updates: Partial<TimeEntry>): 
       newData.billableHoursRounded = rounded;
       newData.billingMonth = billingMonth;
       newData.hourlyRate = rate;
-      newData.amount = calculateAmount(rounded, rate);
       newData.activityRate = rate;
-      newData.totalAmount = calculateAmount(rounded, rate);
       newData.isOpenCourt = newData.activityType === 'Court' || newData.isOpenCourt;
+
+      const providedAmount = updates.amount !== undefined ? updates.amount : (updates.totalAmount !== undefined ? updates.totalAmount : undefined);
+      if (providedAmount !== undefined) {
+        newData.amount = providedAmount;
+        newData.totalAmount = providedAmount;
+      } else {
+        newData.amount = calculateAmount(rounded, rate);
+        newData.totalAmount = calculateAmount(rounded, rate);
+      }
     }
 
     const updated: TimeEntry = {

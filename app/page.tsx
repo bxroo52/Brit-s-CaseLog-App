@@ -149,14 +149,17 @@ const LoginScreen = memo<LoginScreenProps>(({ signIn, signUp, resetPassword, isS
     try {
       await signUp(authEmail, authPassword, authUserId || undefined);
       // Clear password (security) and optional UserID.
-      // Keep email so it's pre-filled when user switches to the login view
-      // (via the "Back to login" button) after confirming (if required).
-      // - If "Confirm email" OFF: store sets isAuthenticated=true and the whole
-      //   LoginScreen is replaced by the main app immediately (seamless login).
+      // Sign-up is instant (email confirmation disabled in Supabase config).
+      // The LoginScreen is replaced immediately by the main app on success.
       setAuthPassword('');
       setAuthUserId('');
     } catch (e: any) {
-      setAuthError(e.message || 'Sign up failed.');
+      let msg = e.message || 'Sign up failed.';
+      const lower = msg.toLowerCase();
+      if (lower.includes('rate limit') || lower.includes('too many') || lower.includes('email rate')) {
+        msg = 'Too many attempts. Please wait a moment and try again.';
+      }
+      setAuthError(msg);
     } finally {
       setAuthLoading(false);
     }
