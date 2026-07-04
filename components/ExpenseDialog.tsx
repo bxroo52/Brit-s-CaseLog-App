@@ -49,6 +49,7 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
   })();
 
   useEffect(() => {
+    if (!open) return;
     if (existing) {
       setForm({
         caseId: existing.caseId,
@@ -60,6 +61,7 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
     } else {
       // For new log expense, always start with blank description (no default/pre-filled text)
       // and correct case if provided. This ensures clean state even if dialog component persists.
+      // Populate using current open cases when the dialog opens (matching LogTimeModal behavior).
       setForm({
         caseId: defaultCaseId || (openCases[0]?.id ?? ''),
         date: format(new Date(), 'yyyy-MM-dd'),
@@ -68,7 +70,17 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
         amount: 0,
       });
     }
-  }, [existing, defaultCaseId]);
+  }, [open, existing, defaultCaseId]);
+
+  // Auto-populate first open case for new Log Expense if none selected yet (e.g. cases loaded after open)
+  useEffect(() => {
+    if (open && !existing && !form.caseId && openCases.length > 0) {
+      setForm((f) => ({
+        ...f,
+        caseId: defaultCaseId || openCases[0].id,
+      }));
+    }
+  }, [open, existing, form.caseId, openCases.length, defaultCaseId]);
 
   const handleSubmit = async () => {
     if (!form.caseId) return toast.error('Select a case');
