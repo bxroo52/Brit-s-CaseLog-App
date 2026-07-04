@@ -894,8 +894,8 @@ export default function CaseLogApp() {
   // Dashboard cards
   const Dashboard = () => (
     <div className="space-y-6">
-      {/* Greeting - photo above the text */}
-      <div className="flex flex-col items-start gap-2">
+      {/* Greeting - photo above, both centered */}
+      <div className="flex flex-col items-center gap-2">
         {profile?.photoDataUrl ? (
           <img
             src={profile.photoDataUrl}
@@ -907,7 +907,7 @@ export default function CaseLogApp() {
             {profile?.name ? profile.name.split(/\s+/).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase() : '👤'}
           </div>
         )}
-        <h1 className="text-3xl font-semibold tracking-tighter">
+        <h1 className="text-3xl font-semibold tracking-tighter text-center">
           {(() => {
             const first = getFirstName(profile?.name);
             return first ? `Welcome back, ${first}.` : 'Welcome back.';
