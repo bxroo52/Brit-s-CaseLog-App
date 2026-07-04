@@ -355,7 +355,6 @@ export default function CaseLogApp() {
     expenses,
     profile,
     isLoading,
-    selectedMonth,
     searchTerm,
     statusFilter,
     assignmentFilter,
@@ -632,7 +631,7 @@ export default function CaseLogApp() {
   const [optimisticExpenses, setOptimisticExpenses] = useState<any[]>([]);
   const [newCaseModalOpen, setNewCaseModalOpen] = useState(false);
 
-  const [billingMonth, setBillingMonth] = useState(selectedMonth);
+  const [billingMonth, setBillingMonth] = useState(() => format(new Date(), 'yyyy-MM'));
 
   // For Account tab modals / info screens
   const [accountModalOpen, setAccountModalOpen] = useState(false);
@@ -675,11 +674,6 @@ export default function CaseLogApp() {
       await initializeAppData();
     })();
   }, []);
-
-  // Sync selected month
-  useEffect(() => {
-    setBillingMonth(selectedMonth);
-  }, [selectedMonth]);
 
   const openCases = getOpenCases();
   const filteredCases = getFilteredCases();
@@ -1344,7 +1338,9 @@ export default function CaseLogApp() {
           <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">Billing Month</div>
           <Select value={billingMonth} onValueChange={handleMonthChange}>
             <SelectTrigger className="w-full h-12 text-base">
-              <SelectValue />
+              <SelectValue placeholder="Billing month">
+                {formatMonth(billingMonth)}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {months.map((m) => (
