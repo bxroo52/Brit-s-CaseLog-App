@@ -21,9 +21,10 @@ interface ExpenseDialogProps {
 }
 
 export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: ExpenseDialogProps) {
-  // Use EXACTLY the same data source and filtering logic as the working Log Time dialog (LogTimeModal).
-  // (Dashboard also uses getOpenCases().) This is open cases only.
-  const { getOpenCases, cases: storeCases } = useAppStore();
+  // Use exactly the same data source and filtering logic as the working Log Time dialog:
+  // const allCases = useAppStore((state) => state.cases);
+  // const cases = allCases.filter((c: any) => c.status === 'Open');
+  const allCases = useAppStore((state) => state.cases);
   const addExpense = useAppStore((state) => state.addExpense);
   const editExpense = useAppStore((state) => state.editExpense);
 
@@ -35,14 +36,14 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
     amount: 0,
   });
 
-  const cases = getOpenCases ? getOpenCases() : (storeCases || []).filter((c: any) => c.status === 'Open');
+  const cases = allCases.filter((c: any) => c.status === 'Open');
 
   useEffect(() => {
     if (open) {
       const store = useAppStore.getState();
-      const openNow = store.getOpenCases ? store.getOpenCases() : (store.cases || []).filter((c: any) => c.status === 'Open');
+      const openNow = (store.cases || []).filter((c: any) => c.status === 'Open');
       const allLen = (store.cases || []).length;
-      console.log('[ExpenseDialog] dialog opened. store.cases.length=', allLen, ' open (via getOpenCases)=', openNow.length);
+      console.log('[ExpenseDialog] dialog opened. store.cases.length=', allLen, ' open filtered=', openNow.length);
       console.log('[ExpenseDialog] open cases list for dropdown:', openNow.map((c: any) => ({ id: c.id, caseNumber: c.caseNumber, last: c.respondentLastName, status: c.status })));
       if (openNow.length === 0 && allLen === 0) {
         store.loadAllData?.().catch(() => {});
@@ -64,9 +65,8 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
       // For new log expense, always start with blank description (no default/pre-filled text)
       // and correct case if provided. This ensures clean state even if dialog component persists.
       // Populate using current open cases when the dialog opens (matching LogTimeModal behavior).
-      // Use getOpenCases() from the store -- the same reliable source Dashboard + Log Time use.
       const store = useAppStore.getState();
-      const freshOpen = store.getOpenCases ? store.getOpenCases() : (store.cases || []).filter((c: any) => c.status === 'Open');
+      const freshOpen = (store.cases || []).filter((c: any) => c.status === 'Open');
       setForm({
         caseId: defaultCaseId || (freshOpen[0]?.id ?? ''),
         date: format(new Date(), 'yyyy-MM-dd'),
@@ -117,9 +117,6 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
     });
   };
 
-  // Right before returning JSX that renders the Case select (per requirements)
-  console.log('[ExpenseDialog] right before rendering the Case select, cases array being used for options:', cases);
-
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
       <DialogContent className="sm:max-w-md">
@@ -131,6 +128,7 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
           {/* Direct Case select using EXACT same data source + filtering + formatting as working Log Time dialog */}
           <div>
             <Label>Case</Label>
+            {(console.log('[ExpenseDialog] right before rendering the Case select, cases array being passed/used:', cases), null)}
             <select
               key={`case-select-${(cases || []).map((c: any) => c.id).join('|') || 'empty'}`}
               value={form.caseId}

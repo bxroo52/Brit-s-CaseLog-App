@@ -12,9 +12,8 @@ interface LogTimeModalProps {
 }
 
 export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSuccess }: LogTimeModalProps) {
-  // Pull open cases using the exact same reliable getOpenCases() source as the Dashboard.
-  // (Previously Log Time used manual filter; now unified for Log Time + Log Expense.)
-  const { getOpenCases, cases: storeCases } = useAppStore();
+  // Use the data source: allCases from store selector then filter for open (same for Log Expense now).
+  const allCases = useAppStore((state) => state.cases);
   const addTimeEntry = useAppStore((state) => state.addTimeEntry);
   const [selectedCase, setSelectedCase] = useState('');
   const [selectedActivity, setSelectedActivity] = useState('Contact');
@@ -22,14 +21,14 @@ export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSucce
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const cases = getOpenCases ? getOpenCases() : (storeCases || []).filter((c: any) => c.status === 'Open');
+  const cases = allCases.filter((c: any) => c.status === 'Open');
 
   useEffect(() => {
     if (!isOpen) return;
     const store = useAppStore.getState();
-    const openNow = store.getOpenCases ? store.getOpenCases() : (store.cases || []).filter((c: any) => c.status === 'Open');
+    const openNow = (store.cases || []).filter((c: any) => c.status === 'Open');
     const allLen = (store.cases || []).length;
-    console.log('[LogTimeModal] dialog opened. store cases:', allLen, 'open (via getOpenCases):', openNow.length);
+    console.log('[LogTimeModal] dialog opened. store cases:', allLen, 'open filtered:', openNow.length);
     if (openNow.length === 0 && allLen === 0) {
       store.loadAllData?.().catch(() => {});
     }
@@ -136,6 +135,7 @@ export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSucce
             <label className="block text-sm text-zinc-400 mb-2">Case</label>
             <select key={`case-select-${(cases || []).map((c: any) => c.id).join('|') || 'empty'}`} value={selectedCase} onChange={e => setSelectedCase(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 text-lg">
               <option value="">Select a case...</option>
+              {(console.log('[LogTimeModal] right before rendering the Case select, cases array being passed to it:', cases), null)}
               {cases.map((c: any) => (
                 <option key={c.id} value={c.id}>
                   {c.respondentLastName}, {c.respondentFirstName} — {c.caseNumber}

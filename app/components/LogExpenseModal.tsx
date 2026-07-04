@@ -12,9 +12,10 @@ interface LogExpenseModalProps {
 }
 
 export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSuccess }: LogExpenseModalProps) {
-  // Pull from the *same reliable source* (store.getOpenCases) that Dashboard + Log Time now use.
-  // This was the same fix previously applied to Log Time; Expense/LogExpense were still using manual .filter on .cases.
-  const { getOpenCases, cases: storeCases } = useAppStore();
+  // Use exactly the same data source and filtering logic as the working Log Time dialog:
+  // const allCases = useAppStore((state) => state.cases);
+  // const cases = allCases.filter((c: any) => c.status === 'Open');
+  const allCases = useAppStore((state) => state.cases);
   const addExpense = useAppStore((state) => state.addExpense);
   const [selectedCase, setSelectedCase] = useState('');
   const [expenseType, setExpenseType] = useState('Parking');
@@ -22,15 +23,15 @@ export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSu
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const cases = getOpenCases ? getOpenCases() : (storeCases || []).filter((c: any) => c.status === 'Open');
+  const cases = allCases.filter((c: any) => c.status === 'Open');
 
   useEffect(() => {
     if (!isOpen) return;
 
     const store = useAppStore.getState();
-    const openNow = store.getOpenCases ? store.getOpenCases() : (store.cases || []).filter((c: any) => c.status === 'Open');
+    const openNow = (store.cases || []).filter((c: any) => c.status === 'Open');
     const allLen = (store.cases || []).length;
-    console.log('[LogExpenseModal] dialog opened. store.cases.length=', allLen, ' open (via getOpenCases)=', openNow.length);
+    console.log('[LogExpenseModal] dialog opened. store.cases.length=', allLen, ' open filtered=', openNow.length);
     console.log('[LogExpenseModal] open cases list for dropdown:', openNow.map((c: any) => ({ id: c.id, caseNumber: c.caseNumber, last: c.respondentLastName, first: c.respondentFirstName, status: c.status })));
 
     // If still empty here, force a reload from Dexie (defensive)
@@ -132,6 +133,7 @@ export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSu
         <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-6" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
           <div>
             <label className="block text-sm text-zinc-400 mb-2">Case</label>
+            {(console.log('[LogExpenseModal] right before rendering the Case select, cases array being passed to it:', cases), null)}
             <select key={`case-select-${(cases || []).map((c: any) => c.id).join('|') || 'empty'}`} value={selectedCase} onChange={e => setSelectedCase(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4">
               <option value="">Select a case...</option>
               {cases.map((c: any) => (
