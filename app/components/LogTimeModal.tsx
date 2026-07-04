@@ -12,7 +12,9 @@ interface LogTimeModalProps {
 }
 
 export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSuccess }: LogTimeModalProps) {
-  const allCases = useAppStore((state) => state.cases);
+  // Pull open cases using the exact same reliable getOpenCases() source as the Dashboard.
+  // (Previously Log Time used manual filter; now unified for Log Time + Log Expense.)
+  const { getOpenCases, cases: storeCases } = useAppStore();
   const addTimeEntry = useAppStore((state) => state.addTimeEntry);
   const [selectedCase, setSelectedCase] = useState('');
   const [selectedActivity, setSelectedActivity] = useState('Contact');
@@ -20,17 +22,16 @@ export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSucce
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Use the exact same data source as the Dashboard’s Open Cases section (Zustand store / Dexie)
-  // which correctly populates respondent names and case numbers from the main app data.
-  const cases = allCases.filter((c: any) => c.status === 'Open');
+  const cases = getOpenCases ? getOpenCases() : (storeCases || []).filter((c: any) => c.status === 'Open');
 
   useEffect(() => {
     if (!isOpen) return;
-    const storeCases = useAppStore.getState().cases;
-    const openNow = storeCases.filter((c: any) => c.status === 'Open');
-    console.log('[LogTimeModal] dialog opened. store cases:', storeCases.length, 'open:', openNow.length);
-    if (openNow.length === 0 && storeCases.length === 0) {
-      useAppStore.getState().loadAllData().catch(() => {});
+    const store = useAppStore.getState();
+    const openNow = store.getOpenCases ? store.getOpenCases() : (store.cases || []).filter((c: any) => c.status === 'Open');
+    const allLen = (store.cases || []).length;
+    console.log('[LogTimeModal] dialog opened. store cases:', allLen, 'open (via getOpenCases):', openNow.length);
+    if (openNow.length === 0 && allLen === 0) {
+      store.loadAllData?.().catch(() => {});
     }
     setSelectedCase('');
     setSelectedActivity('Contact');

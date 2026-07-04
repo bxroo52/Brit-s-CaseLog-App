@@ -12,7 +12,9 @@ interface LogExpenseModalProps {
 }
 
 export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSuccess }: LogExpenseModalProps) {
-  const allCases = useAppStore((state) => state.cases);
+  // Pull from the *same reliable source* (store.getOpenCases) that Dashboard + Log Time now use.
+  // This was the same fix previously applied to Log Time; Expense/LogExpense were still using manual .filter on .cases.
+  const { getOpenCases, cases: storeCases } = useAppStore();
   const addExpense = useAppStore((state) => state.addExpense);
   const [selectedCase, setSelectedCase] = useState('');
   const [expenseType, setExpenseType] = useState('Parking');
@@ -20,20 +22,20 @@ export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSu
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Use the exact same data source as the Dashboard’s Open Cases section and Log Time form (Zustand store / Dexie)
-  const cases = allCases.filter((c: any) => c.status === 'Open');
+  const cases = getOpenCases ? getOpenCases() : (storeCases || []).filter((c: any) => c.status === 'Open');
 
   useEffect(() => {
     if (!isOpen) return;
 
-    const storeCases = useAppStore.getState().cases;
-    const openNow = storeCases.filter((c: any) => c.status === 'Open');
-    console.log('[LogExpenseModal] dialog opened. store.cases.length=', storeCases.length, ' open filtered=', openNow.length);
+    const store = useAppStore.getState();
+    const openNow = store.getOpenCases ? store.getOpenCases() : (store.cases || []).filter((c: any) => c.status === 'Open');
+    const allLen = (store.cases || []).length;
+    console.log('[LogExpenseModal] dialog opened. store.cases.length=', allLen, ' open (via getOpenCases)=', openNow.length);
     console.log('[LogExpenseModal] open cases list for dropdown:', openNow.map((c: any) => ({ id: c.id, caseNumber: c.caseNumber, last: c.respondentLastName, first: c.respondentFirstName, status: c.status })));
 
     // If still empty here, force a reload from Dexie (defensive)
-    if (openNow.length === 0 && storeCases.length === 0) {
-      useAppStore.getState().loadAllData().catch(() => {});
+    if (openNow.length === 0 && allLen === 0) {
+      store.loadAllData?.().catch(() => {});
     }
 
     // Reset form when opening (ensure blank, etc.)
