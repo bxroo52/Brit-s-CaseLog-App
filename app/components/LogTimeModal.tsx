@@ -26,6 +26,12 @@ export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSucce
 
   useEffect(() => {
     if (!isOpen) return;
+    const storeCases = useAppStore.getState().cases;
+    const openNow = storeCases.filter((c: any) => c.status === 'Open');
+    console.log('[LogTimeModal] dialog opened. store cases:', storeCases.length, 'open:', openNow.length);
+    if (openNow.length === 0 && storeCases.length === 0) {
+      useAppStore.getState().loadAllData().catch(() => {});
+    }
     setSelectedCase('');
     setSelectedActivity('Contact');
     setHours('1');

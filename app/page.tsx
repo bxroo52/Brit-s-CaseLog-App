@@ -681,18 +681,19 @@ export default function CaseLogApp() {
   };
 
   // Open log with case preselected (using new bottom-sheet form)
-  const quickLogTime = (caseId?: string) => {
+  const quickLogTime = async (caseId?: string) => {
+    try { await loadAllData(); } catch {}
     setLogTimeCaseId(caseId);
     setLogTimeOpen(true);
   };
 
-  const quickLogExpense = (caseId?: string) => {
-    // Ensure open cases are loaded into the store before opening the dialog
-    if (cases.length === 0) {
-      loadAllData().catch(() => {});
-    }
+  const quickLogExpense = async (caseId?: string) => {
+    // Ensure cases (incl. open cases) are loaded from Dexie into the store BEFORE opening.
+    // This fixes "still empty" dropdown even if initial load raced or after auth.
+    try {
+      await loadAllData();
+    } catch {}
     setLogExpenseOpen(true);
-    // Note: defaultCaseId not passed to LogExpenseModal yet; it loads all open cases for the user
   };
 
   const openEditCase = (c: Case) => {
@@ -767,13 +768,13 @@ export default function CaseLogApp() {
     setTimeDialogOpen(true);
   };
 
-  const editExpenseEntry = (e: Expense) => {
+  const editExpenseEntry = async (e: Expense) => {
     setEditingExpense(e);
     setDefaultExpenseCaseId(undefined);
-    // Ensure open cases are loaded into the store before opening the dialog
-    if (cases.length === 0) {
-      loadAllData().catch(() => {});
-    }
+    // Ensure cases loaded before ExpenseDialog opens its case dropdown
+    try {
+      await loadAllData();
+    } catch {}
     setExpenseDialogOpen(true);
   };
 

@@ -37,10 +37,15 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
 
   useEffect(() => {
     if (open) {
-      console.log('[ExpenseDialog] dialog opened, available cases for dropdown (openCases):', openCases);
-      console.log('[ExpenseDialog] number of open cases:', openCases.length);
+      const storeCases = useAppStore.getState().cases;
+      const openNow = storeCases.filter((c: any) => c.status === 'Open');
+      console.log('[ExpenseDialog] dialog opened. store.cases.length=', storeCases.length, ' open filtered=', openNow.length);
+      console.log('[ExpenseDialog] open cases list for dropdown:', openNow.map((c: any) => ({ id: c.id, caseNumber: c.caseNumber, last: c.respondentLastName, status: c.status })));
+      if (openNow.length === 0 && storeCases.length === 0) {
+        useAppStore.getState().loadAllData().catch(() => {});
+      }
     }
-  }, [open, openCases]);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -56,8 +61,10 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
       // For new log expense, always start with blank description (no default/pre-filled text)
       // and correct case if provided. This ensures clean state even if dialog component persists.
       // Populate using current open cases when the dialog opens (matching LogTimeModal behavior).
+      // Use a fresh snapshot in case the render's openCases is momentarily stale.
+      const freshOpen = useAppStore.getState().cases.filter((c: any) => c.status === 'Open');
       setForm({
-        caseId: defaultCaseId || (openCases[0]?.id ?? ''),
+        caseId: defaultCaseId || (freshOpen[0]?.id ?? ''),
         date: format(new Date(), 'yyyy-MM-dd'),
         expenseType: 'Parking',
         description: '',

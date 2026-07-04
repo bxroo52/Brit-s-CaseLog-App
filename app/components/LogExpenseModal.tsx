@@ -26,8 +26,15 @@ export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSu
   useEffect(() => {
     if (!isOpen) return;
 
-    console.log('[LogExpenseModal] dialog opened, available cases for dropdown:', cases);
-    console.log('[LogExpenseModal] number of cases:', cases.length);
+    const storeCases = useAppStore.getState().cases;
+    const openNow = storeCases.filter((c: any) => c.status === 'Open');
+    console.log('[LogExpenseModal] dialog opened. store.cases.length=', storeCases.length, ' open filtered=', openNow.length);
+    console.log('[LogExpenseModal] open cases list for dropdown:', openNow.map((c: any) => ({ id: c.id, caseNumber: c.caseNumber, last: c.respondentLastName, first: c.respondentFirstName, status: c.status })));
+
+    // If still empty here, force a reload from Dexie (defensive)
+    if (openNow.length === 0 && storeCases.length === 0) {
+      useAppStore.getState().loadAllData().catch(() => {});
+    }
 
     // Reset form when opening (ensure blank, etc.)
     setSelectedCase('');
