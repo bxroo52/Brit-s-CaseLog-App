@@ -757,6 +757,7 @@ export default function CaseLogApp() {
     } catch {}
     const afterLoadOpen = (getOpenCases ? getOpenCases() : []).length;
     console.log('[page] quickLogExpense after await loadAllData, openCases count=', afterLoadOpen);
+    setDefaultExpenseCaseId(caseId);
     setLogExpenseOpen(true);
   };
 
@@ -2088,7 +2089,11 @@ export default function CaseLogApp() {
 
       <LogExpenseModal
         isOpen={logExpenseOpen}
-        onClose={() => setLogExpenseOpen(false)}
+        onClose={() => {
+          setLogExpenseOpen(false);
+          setDefaultExpenseCaseId(undefined);
+        }}
+        defaultCaseId={defaultExpenseCaseId}
         onOptimisticAdd={(temp) => setOptimisticExpenses(prev => [temp, ...prev])}
         onSuccess={() => setOptimisticExpenses([])}
       />

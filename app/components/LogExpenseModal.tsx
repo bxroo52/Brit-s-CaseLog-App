@@ -10,9 +10,10 @@ interface LogExpenseModalProps {
   onClose: () => void;
   onOptimisticAdd?: (tempEntry: any) => void;
   onSuccess?: () => void;
+  defaultCaseId?: string;
 }
 
-export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSuccess }: LogExpenseModalProps) {
+export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSuccess, defaultCaseId }: LogExpenseModalProps) {
   // Exact copy of working Case select logic from TimeLogDialog.tsx for Log Expense
   const { cases, addExpense } = useAppStore();
   const [selectedCase, setSelectedCase] = useState('');
@@ -23,10 +24,10 @@ export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSu
 
   const openCases = cases.filter((c) => c.status === 'Open');
 
-  // For selector: prefer open cases, but always include the case being edited (even if now closed)
+  // For selector: prefer open cases, but always include the preselected defaultCaseId (even if not currently open)
   const selectorCases = (() => {
     let list = [...openCases];
-    const currentId = selectedCase;  // for new, may be empty; can extend if needed
+    const currentId = selectedCase || defaultCaseId;
     if (currentId) {
       const currentCase = cases.find((c) => c.id === currentId);
       if (currentCase && !list.some((c) => c.id === currentCase.id)) {
@@ -57,11 +58,11 @@ export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSu
     }
 
     // Reset form when opening (ensure blank, etc.)
-    setSelectedCase('');
+    setSelectedCase(defaultCaseId || '');
     setExpenseType('Parking');
     setAmount('');
     setDescription('');
-  }, [isOpen]);
+  }, [isOpen, defaultCaseId]);
 
   const handleLogExpense = async () => {
     const amountNum = parseFloat(amount);
