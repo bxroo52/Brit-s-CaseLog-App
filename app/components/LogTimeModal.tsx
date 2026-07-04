@@ -9,9 +9,10 @@ interface LogTimeModalProps {
   onClose: () => void;
   onOptimisticAdd?: (tempEntry: any) => void;
   onSuccess?: () => void;
+  defaultCaseId?: string;
 }
 
-export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSuccess }: LogTimeModalProps) {
+export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSuccess, defaultCaseId }: LogTimeModalProps) {
   // Use the data source: allCases from store selector then filter for open (same for Log Expense now).
   const allCases = useAppStore((state) => state.cases);
   const addTimeEntry = useAppStore((state) => state.addTimeEntry);
@@ -21,7 +22,17 @@ export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSucce
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const cases = allCases.filter((c: any) => c.status === 'Open');
+  // Prefer open cases, but include the preselected defaultCaseId even if not currently open
+  const cases = (() => {
+    let list = allCases.filter((c: any) => c.status === 'Open');
+    if (defaultCaseId) {
+      const defaultCase = allCases.find((c: any) => c.id === defaultCaseId);
+      if (defaultCase && !list.some((c: any) => c.id === defaultCase.id)) {
+        list = [defaultCase, ...list];
+      }
+    }
+    return list;
+  })();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -32,11 +43,11 @@ export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSucce
     if (openNow.length === 0 && allLen === 0) {
       store.loadAllData?.().catch(() => {});
     }
-    setSelectedCase('');
+    setSelectedCase(defaultCaseId || '');
     setSelectedActivity('Contact');
     setHours('1');
     setDescription('');
-  }, [isOpen]);
+  }, [isOpen, defaultCaseId]);
 
   const handleLogTime = async () => {
     const billableHoursNum = parseFloat(hours);

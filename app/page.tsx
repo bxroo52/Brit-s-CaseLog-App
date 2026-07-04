@@ -1705,6 +1705,7 @@ export default function CaseLogApp() {
           setLogTimeOpen(false);
           setLogTimeCaseId(undefined);
         }}
+        defaultCaseId={logTimeCaseId}
         onOptimisticAdd={(tempEntry) => setOptimisticEntries(prev => [tempEntry, ...prev])}
         onSuccess={() => {
           setOptimisticEntries([]);
