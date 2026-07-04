@@ -120,6 +120,9 @@ export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSucce
 
   if (!isOpen) return null;
 
+  // Right before rendering (for debug; Log Time is the reference "working" one)
+  console.log('[LogTimeModal] right before rendering the Case select, cases array being used:', cases);
+
   return (
     <div className="fixed inset-0 bg-black/80 flex items-end z-50">
       <div className="bg-zinc-950 w-full max-w-md mx-auto rounded-t-3xl flex flex-col overflow-hidden max-h-[85dvh]" style={{ maxHeight: 'min(85dvh, calc(100dvh - 20px))' }}>
@@ -131,9 +134,9 @@ export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSucce
         <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-6" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
           <div>
             <label className="block text-sm text-zinc-400 mb-2">Case</label>
-            <select value={selectedCase} onChange={e => setSelectedCase(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 text-lg">
+            <select key={`case-select-${(cases || []).map((c: any) => c.id).join('|') || 'empty'}`} value={selectedCase} onChange={e => setSelectedCase(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 text-lg">
               <option value="">Select a case...</option>
-              {cases.map(c => (
+              {cases.map((c: any) => (
                 <option key={c.id} value={c.id}>
                   {c.respondentLastName}, {c.respondentFirstName} — {c.caseNumber}
                 </option>

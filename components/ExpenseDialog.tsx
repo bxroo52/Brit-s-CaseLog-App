@@ -21,8 +21,8 @@ interface ExpenseDialogProps {
 }
 
 export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: ExpenseDialogProps) {
-  // Pull open cases from the *exact same reliable source* used by Dashboard (getOpenCases) and Log Time form.
-  // This ensures the Log Expense dropdown always sees the same open cases list (with respondent names + caseNumber).
+  // Use EXACTLY the same data source and filtering logic as the working Log Time dialog (LogTimeModal).
+  // (Dashboard also uses getOpenCases().) This is open cases only.
   const { getOpenCases, cases: storeCases } = useAppStore();
   const addExpense = useAppStore((state) => state.addExpense);
   const editExpense = useAppStore((state) => state.editExpense);
@@ -35,7 +35,7 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
     amount: 0,
   });
 
-  const openCases = getOpenCases ? getOpenCases() : (storeCases || []).filter((c: any) => c.status === 'Open');
+  const cases = getOpenCases ? getOpenCases() : (storeCases || []).filter((c: any) => c.status === 'Open');
 
   useEffect(() => {
     if (open) {
@@ -79,13 +79,13 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
 
   // Auto-populate first open case for new Log Expense if none selected yet (e.g. cases loaded after open)
   useEffect(() => {
-    if (open && !existing && !form.caseId && openCases.length > 0) {
+    if (open && !existing && !form.caseId && cases.length > 0) {
       setForm((f) => ({
         ...f,
-        caseId: defaultCaseId || openCases[0].id,
+        caseId: defaultCaseId || cases[0].id,
       }));
     }
-  }, [open, existing, form.caseId, openCases.length, defaultCaseId]);
+  }, [open, existing, form.caseId, cases.length, defaultCaseId]);
 
   const handleSubmit = async () => {
     if (!form.caseId) return toast.error('Select a case');
@@ -109,13 +109,16 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
 
   const reset = () => {
     setForm({
-      caseId: defaultCaseId || (openCases[0]?.id ?? ''),
+      caseId: defaultCaseId || (cases[0]?.id ?? ''),
       date: format(new Date(), 'yyyy-MM-dd'),
       expenseType: 'Parking',
       description: '',
       amount: 0,
     });
   };
+
+  // Right before returning JSX that renders the Case select (per requirements)
+  console.log('[ExpenseDialog] right before rendering the Case select, cases array being used for options:', cases);
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
@@ -125,24 +128,22 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-y-auto space-y-4">
-          {/* Direct Case select (like Log Time) using store data to ensure all open cases show */}
+          {/* Direct Case select using EXACT same data source + filtering + formatting as working Log Time dialog */}
           <div>
             <Label>Case</Label>
             <select
+              key={`case-select-${(cases || []).map((c: any) => c.id).join('|') || 'empty'}`}
               value={form.caseId}
               onChange={(e) => setForm({ ...form, caseId: e.target.value })}
               className="mt-1.5 w-full bg-background border border-input rounded-lg px-3 py-2 text-sm"
               required
             >
               <option value="">Select a case...</option>
-              {openCases.map((c) => {
-                const displayName = `${c.respondentLastName || 'Unknown'}, ${c.respondentFirstName || ''}`.trim();
-                return (
-                  <option key={c.id} value={c.id}>
-                    {displayName} — {c.caseNumber}
-                  </option>
-                );
-              })}
+              {cases.map((c: any) => (
+                <option key={c.id} value={c.id}>
+                  {c.respondentLastName}, {c.respondentFirstName} — {c.caseNumber}
+                </option>
+              ))}
             </select>
           </div>
 
