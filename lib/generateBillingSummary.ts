@@ -131,3 +131,134 @@ export function generateBillingSummaryExcel(
   const fileName = `Billing_Summary_${safeMonth}.xlsx`;
   XLSX.writeFile(wb, fileName);
 }
+
+/**
+ * Generate detailed Harvest-style monthly invoice Excel matching samples like Dec_2025_Invoice_Ford.xlsx / Ford invoices.
+ * Groups entries by case, with TOTAL per case, grand total at end.
+ * Uses individual time entry data (description, per-entry rates).
+ */
+export function generateDetailedInvoiceExcel(
+  timeEntriesForMonth: any[],
+  getCaseById: (id: string) => any | undefined,
+  profile: any,
+  billingMonth: string
+): void {
+  if (!timeEntriesForMonth || timeEntriesForMonth.length === 0) {
+    if (typeof window !== 'undefined') {
+      alert('No time entries for this month to generate detailed invoice.');
+    }
+    return;
+  }
+
+  const contractorName = (profile && profile.name) ? profile.name : 'Brittany Ford';
+  const monthLabel = formatMonth(billingMonth);
+
+  // Group by case, enrich and sort entries within case by date
+  const groups: Array<{ id: string; c: any; entries: any[] }> = [];
+  const byCase = new Map<string, any[]>();
+  for (const t of timeEntriesForMonth) {
+    if (!byCase.has(t.caseId)) byCase.set(t.caseId, []);
+    byCase.get(t.caseId)!.push(t);
+  }
+  for (const [id, entries] of byCase.entries()) {
+    const c = getCaseById(id);
+    if (!c) continue;
+    const sortedEntries = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+    groups.push({ id, c, entries: sortedEntries });
+  }
+
+  // Sort groups by respondent last name
+  groups.sort((a, b) => {
+    const la = (a.c.respondentLastName || '').localeCompare(b.c.respondentLastName || '');
+    if (la !== 0) return la;
+    return (a.c.respondentFirstName || '').localeCompare(b.c.respondentFirstName || '');
+  });
+
+  const dataRows: any[][] = [];
+  let grandHours = 0;
+  let grandAmount = 0;
+
+  groups.forEach(group => {
+    const c = group.c;
+    const project = `${c.respondentLastName || ''}, ${c.respondentFirstName || ''}`.toUpperCase().trim();
+    const projectCode = c.caseNumber || '';
+    let caseHours = 0;
+    let caseAmount = 0;
+    let caseRate: number | null = null;
+    let rateUniform = true;
+
+    group.entries.forEach((t: any) => {
+      const hours = Number(t.billableHoursRounded || t.billableHours || 0);
+      const rate = Number(t.activityRate ?? t.hourlyRate ?? 0);
+      const amt = Number(t.totalAmount ?? t.amount ?? (rate * hours));
+      const task = t.activityType || '';
+      const notes = t.description || '';
+
+      // Convert date string to Date for proper Excel date handling
+      let dateVal: any = t.date;
+      try {
+        dateVal = new Date(t.date);
+      } catch {}
+
+      dataRows.push([
+        dateVal,
+        project,
+        projectCode,
+        task,
+        notes,
+        hours,
+        rate,
+        amt,
+      ]);
+
+      caseHours += hours;
+      caseAmount += amt;
+      if (caseRate === null) {
+        caseRate = rate;
+      } else if (caseRate !== rate) {
+        rateUniform = false;
+      }
+    });
+
+    // TOTAL row for the case (mimics sample layout)
+    const rateForTotal = rateUniform && caseRate !== null ? caseRate : '';
+    dataRows.push(['', '', '', '', 'TOTAL', caseHours, rateForTotal, caseAmount]);
+    dataRows.push([]); // blank separator like sample
+
+    grandHours += caseHours;
+    grandAmount += caseAmount;
+  });
+
+  // Final grand totals row (like sample end)
+  dataRows.push(['', '', '', '', '', grandHours, '', grandAmount]);
+
+  const title = `${contractorName} Invoice ${monthLabel}`;
+  const aoa: any[][] = [
+    [title, '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', ''],
+    ['Date', 'Project', 'Project Code', 'Task', 'Notes', 'Hours', 'Rate', 'Amount'],
+    ...dataRows,
+  ];
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+  // Sheet name 'Harvest' to match samples
+  XLSX.utils.book_append_sheet(wb, ws, 'Harvest');
+
+  ws['!cols'] = [
+    { wch: 12 }, // Date
+    { wch: 30 }, // Project
+    { wch: 18 }, // Project Code
+    { wch: 22 }, // Task
+    { wch: 50 }, // Notes
+    { wch: 8 },  // Hours
+    { wch: 8 },  // Rate
+    { wch: 12 }, // Amount
+  ];
+
+  const safe = billingMonth.replace(/[^0-9-]/g, '');
+  const fileName = `Invoice_${safe}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+}

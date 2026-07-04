@@ -15,7 +15,7 @@ import TimeEntriesRealtime from '@/app/components/TimeEntriesRealtime';
 import OpenCasesRealtime from '@/app/components/OpenCasesRealtime';
 import DashboardStatsRealtime from '@/app/components/DashboardStatsRealtime';
 import { generateBillingSpreadsheet } from '@/lib/generateBillingSpreadsheet';
-import { generateBillingSummaryExcel } from '@/lib/generateBillingSummary';
+import { generateBillingSummaryExcel, generateDetailedInvoiceExcel } from '@/lib/generateBillingSummary';
 import { TimeLogDialog } from '@/components/TimeLogDialog';
 import { ExpenseDialog } from '@/components/ExpenseDialog';
 import LogExpenseModal from '@/app/components/LogExpenseModal';
@@ -904,6 +904,16 @@ export default function CaseLogApp() {
     toast('Billing Summary Excel downloaded.');
   };
 
+  const exportDetailedInvoice = () => {
+    const monthEntries = timeEntries.filter((t: any) => t.billingMonth === billingMonth);
+    if (monthEntries.length === 0) {
+      toast('No time entries logged for this month.');
+      return;
+    }
+    generateDetailedInvoiceExcel(monthEntries, getCaseById, profile, billingMonth);
+    toast('Detailed invoice Excel downloaded.');
+  };
+
   const months = getRecentMonths(8);
 
   // Dashboard cards
@@ -1458,15 +1468,6 @@ export default function CaseLogApp() {
                       <span className="font-mono font-medium">{formatCurrency(cs.expensesTotal)}</span>
                     </div>
                   </div>
-
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    className="w-full mt-1 h-9" 
-                    onClick={() => handleDownloadCaseInvoice(cs.caseId)}
-                  >
-                    Download Invoice PDF
-                  </Button>
                 </div>
               ))}
             </div>
@@ -1481,12 +1482,11 @@ export default function CaseLogApp() {
                     <TableHead>Time $</TableHead>
                     <TableHead>Expenses</TableHead>
                     <TableHead className="text-right">Case Total</TableHead>
-                    <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {currentSummary.cases.length === 0 && (
-                    <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">No activity logged for this month.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="py-8 text-center text-muted-foreground">No activity logged for this month.</TableCell></TableRow>
                   )}
                   {currentSummary.cases.map((cs: any) => (
                     <TableRow key={cs.caseId}>
@@ -1498,11 +1498,6 @@ export default function CaseLogApp() {
                       <TableCell className="font-mono">{formatCurrency(cs.timeAmount)}</TableCell>
                       <TableCell className="font-mono">{formatCurrency(cs.expensesTotal)}</TableCell>
                       <TableCell className="font-semibold text-right font-mono">{formatCurrency(cs.grandTotal)}</TableCell>
-                      <TableCell className="text-right">
-                        <Button size="sm" variant="outline" onClick={() => handleDownloadCaseInvoice(cs.caseId)}>
-                          Download Invoice
-                        </Button>
-                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -1518,6 +1513,13 @@ export default function CaseLogApp() {
               className="w-full sm:w-auto h-11 text-base"
             >
               Billing Summary
+            </Button>
+            <Button 
+              variant="secondary" 
+              onClick={exportDetailedInvoice}
+              className="w-full sm:w-auto h-11 text-base"
+            >
+              Download Invoice
             </Button>
             <Button 
               onClick={handleGenerateBilling} 
