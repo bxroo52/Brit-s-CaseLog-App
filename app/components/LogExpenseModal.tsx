@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/stores/useAppStore';
 import { showToast } from './Toast';
+import CaseSelector from '@/components/CaseSelector';
 
 interface LogExpenseModalProps {
   isOpen: boolean;
@@ -12,18 +13,34 @@ interface LogExpenseModalProps {
 }
 
 export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSuccess }: LogExpenseModalProps) {
-  // Use exactly the same data source and filtering logic as the working Log Time dialog:
-  // const allCases = useAppStore((state) => state.cases);
-  // const cases = allCases.filter((c: any) => c.status === 'Open');
-  const allCases = useAppStore((state) => state.cases);
-  const addExpense = useAppStore((state) => state.addExpense);
+  // Exact copy of working Case select logic from TimeLogDialog.tsx for Log Expense
+  const { cases, addExpense } = useAppStore();
   const [selectedCase, setSelectedCase] = useState('');
   const [expenseType, setExpenseType] = useState('Parking');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const cases = allCases.filter((c: any) => c.status === 'Open');
+  const openCases = cases.filter((c) => c.status === 'Open');
+
+  // For selector: prefer open cases, but always include the case being edited (even if now closed)
+  const selectorCases = (() => {
+    let list = [...openCases];
+    const currentId = selectedCase;  // for new, may be empty; can extend if needed
+    if (currentId) {
+      const currentCase = cases.find((c) => c.id === currentId);
+      if (currentCase && !list.some((c) => c.id === currentCase.id)) {
+        list = [currentCase, ...list];
+      }
+    }
+    return list.length > 0 ? list : openCases;
+  })();
+
+  // Temporary manual refresh (as per request)
+  const refreshCases = () => {
+    console.log('[LogExpenseModal] manual refresh triggered');
+    useAppStore.getState().loadAllData().catch(() => {});
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -67,7 +84,7 @@ export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSu
 
     // Create optimistic expense in format expected by ExpensesRealtime (for display)
     const tempId = 'temp-exp-' + Date.now();
-    const selectedCaseObj = cases.find(c => c.id === selectedCase);
+    const selectedCaseObj = openCases.find(c => c.id === selectedCase) || selectorCases.find(c => c.id === selectedCase);
     const optimisticCases = selectedCaseObj ? {
       case_number: selectedCaseObj.caseNumber,
       title: `${selectedCaseObj.respondentLastName || ''}, ${selectedCaseObj.respondentFirstName || ''}`.replace(/^, |, $/, '').trim(),
@@ -133,15 +150,16 @@ export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSu
         <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-6" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
           <div>
             <label className="block text-sm text-zinc-400 mb-2">Case</label>
-            {(console.log('[LogExpenseModal] right before rendering the Case select, cases array being passed to it:', cases), null)}
-            <select key={`case-select-${(cases || []).map((c: any) => c.id).join('|') || 'empty'}`} value={selectedCase} onChange={e => setSelectedCase(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4">
-              <option value="">Select a case...</option>
-              {cases.map((c: any) => (
-                <option key={c.id} value={c.id}>
-                  {c.respondentLastName}, {c.respondentFirstName} — {c.caseNumber}
-                </option>
-              ))}
-            </select>
+            <CaseSelector
+              key={`case-sel-${selectorCases.map((c: any) => c.id).join('|') || 'empty'}`}
+              selectedCaseId={selectedCase}
+              onChange={(caseId) => setSelectedCase(caseId)}
+              cases={selectorCases}
+            />
+            {openCases.length === 0 && (
+              <div className="text-xs text-amber-400 mt-1">No open cases. Create one first using the + New Case button.</div>
+            )}
+            <button type="button" onClick={refreshCases} className="text-xs text-blue-400 hover:underline mt-1">🔄 Refresh open cases (temp)</button>
           </div>
 
           <div>

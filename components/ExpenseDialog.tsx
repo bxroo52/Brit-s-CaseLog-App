@@ -12,6 +12,7 @@ import { ExpenseFormData, Case } from '@/types';
 import { useAppStore } from '@/stores/useAppStore';
 import { toast } from '@/app/components/Toast';
 import { format } from 'date-fns';
+import CaseSelector from '@/components/CaseSelector';
 
 interface ExpenseDialogProps {
   open: boolean;
@@ -21,12 +22,8 @@ interface ExpenseDialogProps {
 }
 
 export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: ExpenseDialogProps) {
-  // Use exactly the same data source and filtering logic as the working Log Time dialog:
-  // const allCases = useAppStore((state) => state.cases);
-  // const cases = allCases.filter((c: any) => c.status === 'Open');
-  const allCases = useAppStore((state) => state.cases);
-  const addExpense = useAppStore((state) => state.addExpense);
-  const editExpense = useAppStore((state) => state.editExpense);
+  // Exact copy from working TimeLogDialog.tsx
+  const { cases, addExpense, editExpense } = useAppStore();
 
   const [form, setForm] = useState<ExpenseFormData>({
     caseId: defaultCaseId || '',
@@ -36,7 +33,20 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
     amount: 0,
   });
 
-  const cases = allCases.filter((c: any) => c.status === 'Open');
+  const openCases = cases.filter((c) => c.status === 'Open');
+
+  // For selector: prefer open cases, but always include the case being edited (even if now closed)
+  const selectorCases = (() => {
+    let list = [...openCases];
+    const currentId = existing?.caseId || form.caseId || defaultCaseId;
+    if (currentId) {
+      const currentCase = cases.find((c) => c.id === currentId);
+      if (currentCase && !list.some((c) => c.id === currentCase.id)) {
+        list = [currentCase, ...list];
+      }
+    }
+    return list.length > 0 ? list : openCases;
+  })();
 
   useEffect(() => {
     if (open) {
@@ -64,7 +74,6 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
     } else {
       // For new log expense, always start with blank description (no default/pre-filled text)
       // and correct case if provided. This ensures clean state even if dialog component persists.
-      // Populate using current open cases when the dialog opens (matching LogTimeModal behavior).
       const store = useAppStore.getState();
       const freshOpen = (store.cases || []).filter((c: any) => c.status === 'Open');
       setForm({
@@ -79,13 +88,13 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
 
   // Auto-populate first open case for new Log Expense if none selected yet (e.g. cases loaded after open)
   useEffect(() => {
-    if (open && !existing && !form.caseId && cases.length > 0) {
+    if (open && !existing && !form.caseId && openCases.length > 0) {
       setForm((f) => ({
         ...f,
-        caseId: defaultCaseId || cases[0].id,
+        caseId: defaultCaseId || openCases[0].id,
       }));
     }
-  }, [open, existing, form.caseId, cases.length, defaultCaseId]);
+  }, [open, existing, form.caseId, openCases.length, defaultCaseId]);
 
   const handleSubmit = async () => {
     if (!form.caseId) return toast.error('Select a case');
@@ -109,12 +118,18 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
 
   const reset = () => {
     setForm({
-      caseId: defaultCaseId || (cases[0]?.id ?? ''),
+      caseId: defaultCaseId || (openCases[0]?.id ?? ''),
       date: format(new Date(), 'yyyy-MM-dd'),
       expenseType: 'Parking',
       description: '',
       amount: 0,
     });
+  };
+
+  // Temporary manual refresh button (as per request to make it work immediately)
+  const refreshCases = () => {
+    console.log('[ExpenseDialog] manual refresh triggered');
+    useAppStore.getState().loadAllData().catch(() => {});
   };
 
   return (
@@ -125,25 +140,17 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-y-auto space-y-4">
-          {/* Direct Case select using EXACT same data source + filtering + formatting as working Log Time dialog */}
-          <div>
-            <Label>Case</Label>
-            {(console.log('[ExpenseDialog] right before rendering the Case select, cases array being passed/used:', cases), null)}
-            <select
-              key={`case-select-${(cases || []).map((c: any) => c.id).join('|') || 'empty'}`}
-              value={form.caseId}
-              onChange={(e) => setForm({ ...form, caseId: e.target.value })}
-              className="mt-1.5 w-full bg-background border border-input rounded-lg px-3 py-2 text-sm"
-              required
-            >
-              <option value="">Select a case...</option>
-              {cases.map((c: any) => (
-                <option key={c.id} value={c.id}>
-                  {c.respondentLastName}, {c.respondentFirstName} — {c.caseNumber}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Exact copy of working Case select logic from TimeLogDialog.tsx */}
+          <CaseSelector
+            key={`case-sel-${selectorCases.map((c: any) => c.id).join('|') || 'empty'}`}
+            selectedCaseId={form.caseId}
+            onChange={(caseId) => setForm({ ...form, caseId })}
+            cases={selectorCases}
+          />
+          {openCases.length === 0 && (
+            <div className="text-xs text-amber-400">No open cases. Create one first using the + New Case button.</div>
+          )}
+          <button type="button" onClick={refreshCases} className="text-xs text-blue-500 hover:underline">🔄 Refresh open cases (temp)</button>
 
           <div className="flex gap-3">
             <div>
