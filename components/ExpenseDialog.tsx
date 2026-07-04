@@ -35,19 +35,12 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
 
   const openCases = allCases.filter((c) => c.status === 'Open');
 
-  // Include the case for the current expense (supports editing closed cases)
-  // Ensures dropdown populates with open cases + the relevant case for edit.
-  const selectorCases = (() => {
-    let list = [...openCases];
-    const currentId = existing?.caseId || form.caseId || defaultCaseId;
-    if (currentId) {
-      const currentCase = allCases.find((c) => c.id === currentId);
-      if (currentCase && !list.some((c) => c.id === currentCase.id)) {
-        list = [currentCase, ...list];
-      }
+  useEffect(() => {
+    if (open) {
+      console.log('[ExpenseDialog] dialog opened, available cases for dropdown (openCases):', openCases);
+      console.log('[ExpenseDialog] number of open cases:', openCases.length);
     }
-    return list.length > 0 ? list : openCases;
-  })();
+  }, [open, openCases]);
 
   useEffect(() => {
     if (!open) return;
@@ -131,7 +124,7 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
               required
             >
               <option value="">Select a case...</option>
-              {selectorCases.map((c) => {
+              {openCases.map((c) => {
                 const displayName = `${c.respondentLastName || 'Unknown'}, ${c.respondentFirstName || ''}`.trim();
                 return (
                   <option key={c.id} value={c.id}>

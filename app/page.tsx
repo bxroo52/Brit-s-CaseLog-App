@@ -687,6 +687,10 @@ export default function CaseLogApp() {
   };
 
   const quickLogExpense = (caseId?: string) => {
+    // Ensure open cases are loaded into the store before opening the dialog
+    if (cases.length === 0) {
+      loadAllData().catch(() => {});
+    }
     setLogExpenseOpen(true);
     // Note: defaultCaseId not passed to LogExpenseModal yet; it loads all open cases for the user
   };
@@ -766,6 +770,10 @@ export default function CaseLogApp() {
   const editExpenseEntry = (e: Expense) => {
     setEditingExpense(e);
     setDefaultExpenseCaseId(undefined);
+    // Ensure open cases are loaded into the store before opening the dialog
+    if (cases.length === 0) {
+      loadAllData().catch(() => {});
+    }
     setExpenseDialogOpen(true);
   };
 

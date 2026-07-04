@@ -26,6 +26,9 @@ export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSu
   useEffect(() => {
     if (!isOpen) return;
 
+    console.log('[LogExpenseModal] dialog opened, available cases for dropdown:', cases);
+    console.log('[LogExpenseModal] number of cases:', cases.length);
+
     // Reset form when opening (ensure blank, etc.)
     setSelectedCase('');
     setExpenseType('Parking');
