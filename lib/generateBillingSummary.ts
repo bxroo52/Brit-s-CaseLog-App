@@ -53,8 +53,6 @@ export function generateBillingSummaryExcel(
       firstName = parts.join(' ');
     }
 
-    const type = cs.assignmentType || '';
-    const firstTime = cs.firstTimeBilling ? 'Yes' : 'No';
     const openClosed = cs.status || (cs.caseId ? 'Open' : 'Open');
 
     dataRows.push([
@@ -65,9 +63,8 @@ export function generateBillingSummaryExcel(
       billed,
       exp,
       tot,
-      type,
-      firstTime,
       openClosed,
+      '', // Order Ver. (left blank per template usage)
     ]);
 
     totalHours += hours;
@@ -83,9 +80,9 @@ export function generateBillingSummaryExcel(
     ['Contractor Name', contractorName],
     ['Month & Year', monthYear],
     [], // blank row
-    // Note / instruction area (modeled on template)
-    ['', '', '', '', '', '', '', 'CVC Only', 'NOTES', ''],
-    // Header row - template base + user-requested fields
+    // Note / instruction area (modeled directly on the template)
+    ['', '', '', '', '', '', '', '', 'CVC Only', 'NOTES'],
+    // Header row - EXACT match to "Billing Summary Template FY24.xlsx" Summary sheet
     [
       'Client Last Name',
       'Client First Name',
@@ -94,12 +91,11 @@ export function generateBillingSummaryExcel(
       'Amount Billed',
       'Expenses',
       'Total',
-      'Type',
-      'First Time Billing',
       'Open/Closed',
+      'Order Ver.',
     ],
     ...dataRows,
-    // Totals row
+    // Totals row (aligned to 9 data columns + extra for notes)
     [
       '',
       '',
@@ -110,14 +106,13 @@ export function generateBillingSummaryExcel(
       Math.round(totalAll * 100) / 100,
       '',
       '',
-      '',
     ],
   ];
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-  // Reasonable column widths for readability (aligned to template + extras)
+  // Reasonable column widths for readability (exact match to template columns)
   ws['!cols'] = [
     { wch: 20 }, // Client Last Name
     { wch: 18 }, // Client First Name
@@ -126,9 +121,8 @@ export function generateBillingSummaryExcel(
     { wch: 15 }, // Amount Billed
     { wch: 12 }, // Expenses
     { wch: 12 }, // Total
-    { wch: 18 }, // Type
-    { wch: 16 }, // First Time Billing
     { wch: 14 }, // Open/Closed
+    { wch: 12 }, // Order Ver.
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, 'Billing Summary');
