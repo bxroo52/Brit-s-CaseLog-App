@@ -50,7 +50,10 @@ export default function NewCaseForm({ onSubmit, onClose, existingCase, onDelete 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-end justify-center z-50">
+    <div
+      className="fixed inset-0 bg-black/60 flex items-end justify-center z-50"
+      onClick={onClose}
+    >
       {/* Scrollable bottom sheet for Edit/New Case.
           Constrained height + flex + inner scroll prevents top cutoff and enables reliable
           scrolling on mobile/iPhone portrait (incl. with keyboard). All fields + Delete button reachable. */}
@@ -60,6 +63,7 @@ export default function NewCaseForm({ onSubmit, onClose, existingCase, onDelete 
           // Robust height: respect dynamic viewport (better for keyboard) + safe areas
           maxHeight: 'min(90dvh, calc(100dvh - 8px))',
         }}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header - always visible, not in scroll */}
         <div className="flex justify-between items-center px-6 pt-6 pb-3 flex-shrink-0">
