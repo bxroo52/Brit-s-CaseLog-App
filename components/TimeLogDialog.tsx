@@ -25,7 +25,7 @@ interface TimeLogDialogProps {
 }
 
 export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry }: TimeLogDialogProps) {
-  const { cases, addTimeEntry, editTimeEntry, getCaseById, getActivityRate, activityRates } = useAppStore();
+  const { cases, addTimeEntry, editTimeEntry, getCaseById, getActivityRate, activityRates, startTimer: storeStartTimer, stopTimer: storeStopTimer, resetTimer: storeResetTimer, getElapsedSeconds, getBilledHours, getActiveTimer } = useAppStore();
 
   const [form, setForm] = useState<TimeEntryFormData>({
     caseId: defaultCaseId || '',
@@ -51,9 +51,9 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
     return list.length > 0 ? list : openCases;
   })();
 
-  const [isTiming, setIsTiming] = useState(false);
-  const [timerStart, setTimerStart] = useState<Date | null>(null);
-  const [liveHours, setLiveHours] = useState(0);
+  // Local UI state for stopwatch display (synced from store)
+  const [displayElapsed, setDisplayElapsed] = useState('00:00:00');
+  const [isTiming, setIsTiming] = useState(false); // reflects if THIS dialog's timer is active
 
   // Allow manual override of estimated/calculated bill amount (for edit)
   const [billAmount, setBillAmount] = useState<string>('');
@@ -103,29 +103,78 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
     }
   }, [existingEntry, defaultCaseId]);
 
-  // Live timer
+  // Recover active timer on open / refresh (persist in store/local)
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isTiming && timerStart) {
-      interval = setInterval(() => {
-        const elapsed = (Date.now() - timerStart.getTime()) / 1000 / 60 / 60;
-        setLiveHours(Math.max(0, elapsed));
-        setForm((f) => ({ ...f, billableHours: Math.max(f.billableHours, Math.round(elapsed * 10) / 10) }));
-      }, 3000);
+    if (!open) return;
+    const timer = getActiveTimer();
+    if ((timer.isRunning || timer.elapsedAtStop) && timer.caseId && timer.activityType) {
+      // If this dialog matches or no specific, sync form
+      if (!existingEntry) {
+        setForm((f) => ({
+          ...f,
+          caseId: timer.caseId!,
+          activityType: timer.activityType!,
+        }));
+      }
+      setIsTiming(!!timer.isRunning);
+      // The interval effect will pick up the display
     }
-    return () => clearInterval(interval);
-  }, [isTiming, timerStart]);
+  }, [open]);
+
+  // Sync with global timer and update display every second if running
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    const syncAndUpdate = () => {
+      const timer = getActiveTimer();
+      const elapsedSec = getElapsedSeconds();
+      const h = Math.floor(elapsedSec / 3600);
+      const m = Math.floor((elapsedSec % 3600) / 60);
+      const s = elapsedSec % 60;
+      const hhmmss = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+      setDisplayElapsed(hhmmss);
+      setIsTiming(!!timer.isRunning);
+
+      // If this dialog's case/activity matches the active timer, update form hours live (but we use billed on stop)
+      if (timer.caseId === form.caseId && timer.activityType === form.activityType) {
+        const billed = getBilledHours();
+        setForm((f) => ({ ...f, billableHours: billed }));
+      }
+    };
+
+    syncAndUpdate(); // initial
+
+    const timer = getActiveTimer();
+    if (timer.isRunning || timer.elapsedAtStop) {
+      interval = setInterval(syncAndUpdate, 1000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [form.caseId, form.activityType, open]); // re-sub on relevant changes
 
   const toggleTimer = () => {
+    const active = getActiveTimer();
     if (!isTiming) {
-      const now = new Date();
-      setTimerStart(now);
+      // Must have case and activity selected (requirement)
+      if (!form.caseId || !form.activityType) {
+        toast.error('Select a Case and Activity Type before starting the timer.');
+        return;
+      }
+      // Only one timer
+      if (active.isRunning && (active.caseId !== form.caseId || active.activityType !== form.activityType)) {
+        toast.error('Another timer is already running. Stop it first.');
+        return;
+      }
+      storeStartTimer(form.caseId, form.activityType);
       setIsTiming(true);
       toast.info('Timer started. Go do the thing.');
     } else {
+      const elapsedSec = storeStopTimer();
+      const rounded = getBilledHours(); // uses round to nearest 0.1 from store
+      setForm((f) => ({ ...f, billableHours: rounded }));
       setIsTiming(false);
-      setTimerStart(null);
-      toast.success('Timer stopped. Log it before you forget.');
+      toast.success(`Timer stopped. ${rounded.toFixed(1)}h ready to log.`);
     }
   };
 
@@ -171,6 +220,13 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
         } as any);
         toast.success('Logged. Tiny logs beat giant catch-up sessions.');
       }
+
+      // If this was from timer, reset the global timer
+      const timer = getActiveTimer();
+      if (timer.caseId === form.caseId && timer.activityType === form.activityType) {
+        storeResetTimer();
+      }
+
       onOpenChange(false);
       resetForm();
     } catch (e: any) {
@@ -189,9 +245,9 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
       isOpenCourt: false,
     });
     setIsTiming(false);
-    setTimerStart(null);
-    setLiveHours(0);
+    setDisplayElapsed('00:00:00');
     setBillAmount('');
+    // Note: global timer is managed separately; reset only if matches on submit
   };
 
   return (
@@ -235,34 +291,69 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
           </div>
 
           <div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-1.5">
               <Label>Billable Hours</Label>
-              <Button
-                type="button"
-                variant={isTiming ? 'destructive' : 'outline'}
-                size="sm"
-                onClick={toggleTimer}
-                className="gap-1.5 h-8 text-xs"
-              >
-                {isTiming ? <Square className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-                {isTiming ? 'Stop Timer' : 'Start Timer'}
-              </Button>
+              {!isTiming ? (
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  onClick={toggleTimer}
+                  disabled={!form.caseId || !form.activityType}
+                  className="gap-1.5 h-8 text-xs bg-green-600 hover:bg-green-700"
+                >
+                  <Play className="h-3 w-3" /> Start Timer
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={toggleTimer}
+                  className="gap-1.5 h-8 text-xs"
+                >
+                  <Square className="h-3 w-3" /> Stop Timer
+                </Button>
+              )}
             </div>
-            <div className="flex items-center gap-2 mt-1.5">
-              <Input
-                type="number"
-                step="0.1"
-                min="0"
-                value={form.billableHours === 0 ? '' : form.billableHours}
-                onChange={(e) => {
-                  const val = parseFloat(e.target.value);
-                  setForm({ ...form, billableHours: isNaN(val) ? 0 : val });
-                }}
-                placeholder="0.0"
-              />
-            </div>
-            {isTiming && (
-              <div className="text-[10px] text-amber-600 mt-1">Timer running — values update live. Stop when done.</div>
+
+            {isTiming ? (
+              <div className="p-4 bg-zinc-900 rounded-2xl text-center">
+                <div className="text-4xl font-mono tabular-nums tracking-[2px] font-semibold">
+                  {displayElapsed}
+                </div>
+                <div className="text-xs text-green-400 mt-1">RUNNING • will round to nearest 0.1h on stop</div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={form.billableHours === 0 ? '' : form.billableHours}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setForm({ ...form, billableHours: isNaN(val) ? 0 : val });
+                  }}
+                  placeholder="0.0"
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={toggleTimer}
+                  disabled={!form.caseId || !form.activityType}
+                >
+                  Start Timer
+                </Button>
+              </div>
+            )}
+
+            {!isTiming && form.billableHours > 0 && (
+              <div className="text-[10px] text-muted-foreground mt-1">
+                Or use timer above for stopwatch (rounds to nearest 0.1h)
+              </div>
             )}
           </div>
 

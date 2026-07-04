@@ -86,6 +86,15 @@ interface AppState {
   // UI Prefs (persisted)
   notificationsEnabled: boolean;
 
+  // Active running timer (persisted to survive refresh/background)
+  activeTimer: {
+    isRunning: boolean;
+    startTimestamp: number | null; // unix ms
+    elapsedAtStop: number | null; // seconds when stopped (for recovery/display)
+    caseId: string | null;
+    activityType: string | null;
+  };
+
   // Actions - Cases
   loadAllData: () => Promise<void>;
   addCase: (data: CaseFormData) => Promise<Case>;
@@ -97,6 +106,14 @@ interface AppState {
   addTimeEntry: (data: TimeEntryFormData & { hourlyRate?: number }) => Promise<TimeEntry>;
   editTimeEntry: (id: string, updates: Partial<TimeEntry>) => Promise<void>;
   removeTimeEntry: (id: string) => Promise<void>;
+
+  // Timer actions (for Log Time stopwatch)
+  startTimer: (caseId: string, activityType: string) => void;
+  stopTimer: () => number; // returns elapsed seconds
+  resetTimer: () => void;
+  getElapsedSeconds: () => number;
+  getBilledHours: () => number; // rounded up to 0.1
+  getActiveTimer: () => AppState['activeTimer'];
   getTimeForCase: (caseId: string) => TimeEntry[];
   getPendingForMonth: (month: string) => Promise<TimeEntry[]>;
 
@@ -201,6 +218,15 @@ export const useAppStore = create<AppState>()(
 
       // UI Prefs
       notificationsEnabled: false,
+
+      // Timer
+      activeTimer: {
+        isRunning: false,
+        startTimestamp: null,
+        elapsedAtStop: null,
+        caseId: null,
+        activityType: null,
+      },
 
       // ---- Load ----
       loadAllData: async () => {
@@ -503,6 +529,66 @@ export const useAppStore = create<AppState>()(
         const currentUserId = get().user?.id;
         return getPendingTimeEntriesForMonth(month, currentUserId);
       },
+
+      // ---- Timer (Log Time stopwatch, one at a time, persisted) ----
+      startTimer: (caseId, activityType) => {
+        const now = Date.now();
+        set((state) => ({
+          activeTimer: {
+            isRunning: true,
+            startTimestamp: now,
+            elapsedAtStop: null,
+            caseId,
+            activityType,
+          },
+        }));
+      },
+
+      stopTimer: () => {
+        const timer = get().activeTimer;
+        let elapsedSec = 0;
+        if (timer.isRunning && timer.startTimestamp) {
+          elapsedSec = Math.floor((Date.now() - timer.startTimestamp) / 1000);
+        }
+        set((state) => ({
+          activeTimer: {
+            ...state.activeTimer,
+            isRunning: false,
+            elapsedAtStop: elapsedSec,
+          },
+        }));
+        return elapsedSec;
+      },
+
+      resetTimer: () => {
+        set((state) => ({
+          activeTimer: {
+            isRunning: false,
+            startTimestamp: null,
+            elapsedAtStop: null,
+            caseId: null,
+            activityType: null,
+          },
+        }));
+      },
+
+      getElapsedSeconds: () => {
+        const timer = get().activeTimer;
+        if (timer.isRunning && timer.startTimestamp) {
+          return Math.floor((Date.now() - timer.startTimestamp) / 1000);
+        }
+        return timer.elapsedAtStop || 0;
+      },
+
+      getBilledHours: () => {
+        const elapsedSec = get().getElapsedSeconds();
+        const hours = elapsedSec / 3600;
+        // Round to nearest 0.1h (standard round-half-up, matches billing)
+        // Examples: 3720s(1h2m)->1.0 , 3840s(1h4m)->1.1 , 360s(6m)->0.1 , 120s->0.0
+        return Math.round(hours * 10) / 10;
+      },
+
+      getActiveTimer: () => get().activeTimer,
 
       // ---- Expenses ----
       addExpense: async (data) => {
@@ -1012,6 +1098,7 @@ export const useAppStore = create<AppState>()(
         hourlyRateMin: state.hourlyRateMin,
         hourlyRateMax: state.hourlyRateMax,
         notificationsEnabled: state.notificationsEnabled,
+        activeTimer: state.activeTimer,
       }),
     }
   )
