@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/useAppStore';
+import { toast } from '@/app/components/Toast';
 
 export default function NewCaseModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { addCase } = useAppStore();
@@ -16,7 +17,7 @@ export default function NewCaseModal({ isOpen, onClose }: { isOpen: boolean; onC
     notes: '',
   });
 
-  // Reset form every time the modal opens
+  // Reset form every time the modal opens -- Case Number must start completely blank (no default value)
   useEffect(() => {
     if (isOpen) {
       setForm({
@@ -40,11 +41,14 @@ export default function NewCaseModal({ isOpen, onClose }: { isOpen: boolean; onC
 
   const handleSubmit = async () => {
     if (!supabase) {
-      alert('Supabase not configured');
+      toast.error('Supabase not configured');
       return;
     }
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return alert('Not logged in');
+    if (!user) {
+      toast.error('Not logged in');
+      return;
+    }
 
     try {
       await addCase({
@@ -56,10 +60,11 @@ export default function NewCaseModal({ isOpen, onClose }: { isOpen: boolean; onC
         firstTimeBilling: form.first_time_billing,
         notes: form.notes,
       });
-      alert('Case created successfully!');
+      // success toast emitted by store action
       onClose();
     } catch (err: any) {
-      alert('Error creating case: ' + (err?.message || err));
+      // error toast emitted by store; keep generic here if needed
+      toast.error('Failed to create case.');
     }
   };
 

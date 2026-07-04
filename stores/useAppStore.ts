@@ -295,7 +295,7 @@ export const useAppStore = create<AppState>()(
 
       // ---- Cases ----
       addCase: async (data: CaseFormData) => {
-        // Quick create pattern - direct Dexie + queue
+        // Quick create pattern - optimistic UI first
         const now = new Date().toISOString();
         const currentUserId = get().user?.id;
         const respondentName = `${data.respondentLastName || ''}, ${data.respondentFirstName || ''}`.trim().replace(/^, |, $/, '');
@@ -310,14 +310,27 @@ export const useAppStore = create<AppState>()(
           isDeleted: false,
         } as any;
 
-        await db.cases.add(newCase);
+        // Optimistic: update UI immediately
         set((state) => ({ cases: [newCase, ...state.cases] }));
-        await queueChange('upsert', 'cases', newCase.id, newCase);
-        get().refreshSyncStatus();
-        // refresh billing preview with new case
-        get().loadBillingSummary(get().selectedMonth).catch(() => {});
-        // UI updates instantly from Dexie
-        return newCase;
+
+        try {
+          await db.cases.add(newCase);
+          await queueChange('upsert', 'cases', newCase.id, newCase);
+          get().refreshSyncStatus();
+          // refresh billing preview with new case
+          get().loadBillingSummary(get().selectedMonth).catch(() => {});
+
+          toast.success('Case created.');
+          return newCase;
+        } catch (e: any) {
+          // Rollback optimistic add
+          set((state) => ({
+            cases: state.cases.filter((c: any) => c.id !== newCase.id),
+          }));
+          const msg = e?.message || 'Failed to create case. Please try again.';
+          toast.error(msg);
+          throw e;
+        }
       },
 
       editCase: async (id, updates) => {
@@ -375,12 +388,24 @@ export const useAppStore = create<AppState>()(
           isDeleted: false,
         };
 
-        await db.timeEntries.add(newEntry);
+        // Optimistic: update UI immediately
         set((state) => ({ timeEntries: [newEntry, ...state.timeEntries] }));
-        await queueChange('upsert', 'timeEntries', newEntry.id, newEntry);
-        get().refreshSyncStatus();
-        // UI updates instantly from Dexie
-        return newEntry;
+
+        try {
+          await db.timeEntries.add(newEntry);
+          await queueChange('upsert', 'timeEntries', newEntry.id, newEntry);
+          get().refreshSyncStatus();
+          toast.success('Time entry saved.');
+          return newEntry;
+        } catch (e: any) {
+          // Rollback
+          set((state) => ({
+            timeEntries: state.timeEntries.filter((t: any) => t.id !== newEntry.id),
+          }));
+          const msg = e?.message || 'Failed to save time entry. Please try again.';
+          toast.error(msg);
+          throw e;
+        }
       },
 
       editTimeEntry: async (id, updates) => {
@@ -437,7 +462,7 @@ export const useAppStore = create<AppState>()(
 
       // ---- Expenses ----
       addExpense: async (data) => {
-        // In Quick Log save - direct Dexie + queue pattern
+        // Optimistic UI first for instant feedback
         const currentUserId = get().user?.id;
         const newExpense = {
           id: crypto.randomUUID(),
@@ -448,12 +473,24 @@ export const useAppStore = create<AppState>()(
           isDeleted: false,
         };
 
-        await db.expenses.add(newExpense);
+        // Optimistic update
         set((state) => ({ expenses: [newExpense, ...state.expenses] }));
-        await queueChange('upsert', 'expenses', newExpense.id, newExpense);
-        get().refreshSyncStatus();
-        // UI updates instantly from Dexie
-        return newExpense;
+
+        try {
+          await db.expenses.add(newExpense);
+          await queueChange('upsert', 'expenses', newExpense.id, newExpense);
+          get().refreshSyncStatus();
+          toast.success('Expense saved.');
+          return newExpense;
+        } catch (e: any) {
+          // Rollback
+          set((state) => ({
+            expenses: state.expenses.filter((e: any) => e.id !== newExpense.id),
+          }));
+          const msg = e?.message || 'Failed to save expense. Please try again.';
+          toast.error(msg);
+          throw e;
+        }
       },
 
       editExpense: async (id, updates) => {
@@ -482,24 +519,43 @@ export const useAppStore = create<AppState>()(
 
       // ---- Profile ----
       saveProfile: async (updates) => {
-        const updated = await updateUserProfile(updates);
-        set({ profile: updated });
+        const prevProfile = get().profile;
+        // Optimistic update immediately
+        const optimistic = {
+          ...(prevProfile || { id: 'profile', updatedAt: new Date().toISOString() }),
+          ...updates,
+          updatedAt: new Date().toISOString(),
+        } as UserProfile;
+        set({ profile: optimistic });
 
-        // Also sync basic fields to Supabase profiles table if available
-        if (supabase) {
-          try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-              await supabase.from('profiles').upsert({
-                id: user.id,
-                name: updated.name || updates.name || '',
-                email: updated.email || updates.email || '',
-                phone: updated.phone || updates.phone || '',
-              });
+        try {
+          const updated = await updateUserProfile(updates);
+          set({ profile: updated });
+
+          // Also sync basic fields (no photo) to Supabase profiles table if available
+          if (supabase) {
+            try {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user) {
+                await supabase.from('profiles').upsert({
+                  id: user.id,
+                  name: updated.name || updates.name || '',
+                  email: updated.email || updates.email || '',
+                  phone: updated.phone || updates.phone || '',
+                });
+              }
+            } catch (e) {
+              // ignore sync error, local is primary
             }
-          } catch (e) {
-            // ignore sync error, local is primary
           }
+
+          toast.success('Profile saved.');
+        } catch (e: any) {
+          // Rollback
+          set({ profile: prevProfile });
+          const msg = e?.message || 'Failed to save profile. Please try again.';
+          toast.error(msg);
+          throw e;
         }
       },
 

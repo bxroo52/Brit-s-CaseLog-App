@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { NewCaseFormData, AssignmentType, CaseStatus } from '@/types';
+import { toast } from '@/app/components/Toast';
 
 interface NewCaseFormProps {
   onSubmit: (data: NewCaseFormData) => Promise<void>;
@@ -14,7 +15,8 @@ export default function NewCaseForm({ onSubmit, onClose, existingCase, onDelete 
   const [formData, setFormData] = useState<NewCaseFormData>({
     respondentFirstName: existingCase?.respondentFirstName || '',
     respondentLastName: existingCase?.respondentLastName || '',
-    caseNumber: existingCase?.caseNumber || '',
+    // Always start completely blank for new case (no default/prefill value)
+    caseNumber: existingCase ? (existingCase.caseNumber || '') : '',
     assignmentType: existingCase?.assignmentType || 'Initial',
     status: existingCase?.status || 'Open',
     firstTimeBilling: existingCase?.firstTimeBilling ?? false,
@@ -30,18 +32,18 @@ export default function NewCaseForm({ onSubmit, onClose, existingCase, onDelete 
     e.preventDefault();
     
     if (!formData.respondentLastName.trim()) {
-      alert('Last Name is required');
+      toast.error('Last Name is required');
       return;
     }
 
     setIsSubmitting(true);
     try {
       await onSubmit(formData);
-      // Reset form or close modal
+      // success handled by optimistic + toast in store (or caller)
       onClose();
     } catch (error) {
       console.error('Failed to create case:', error);
-      alert('Error creating case. Please try again.');
+      toast.error('Failed to save case. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

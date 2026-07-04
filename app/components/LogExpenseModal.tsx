@@ -97,7 +97,7 @@ export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSu
       setDescription('');
 
     } catch (err: any) {
-      showToast('Failed to log expense: ' + err.message, 'error');
+      showToast('Failed to log expense. Please try again.', 'error');
     } finally {
       setLoading(false);
     }

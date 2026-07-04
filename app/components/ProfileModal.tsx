@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '@/stores/useAppStore';
+import { toast } from '@/app/components/Toast';
 
 export default function ProfileModal({ isOpen, onClose, onProfileUpdated }: { 
   isOpen: boolean; 
@@ -9,8 +10,9 @@ export default function ProfileModal({ isOpen, onClose, onProfileUpdated }: {
   onProfileUpdated?: () => void;
 }) {
   const { profile: storeProfile, saveProfile, loadProfile } = useAppStore();
-  const [localProfile, setLocalProfile] = useState({ name: '', email: '', phone: '' });
+  const [localProfile, setLocalProfile] = useState({ name: '', email: '', phone: '', photoDataUrl: undefined as string | undefined });
   const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load from Zustand/Dexie (works offline + after saves). Supabase enrichment happens in store loadProfile.
   useEffect(() => {
@@ -20,8 +22,65 @@ export default function ProfileModal({ isOpen, onClose, onProfileUpdated }: {
       name: p?.name || '',
       email: p?.email || '',
       phone: p?.phone || '',
+      photoDataUrl: p?.photoDataUrl || undefined,
     });
   }, [isOpen, storeProfile]);
+
+  // Resize image to small avatar size (data URL). Keeps file tiny for local storage.
+  async function resizeToDataUrl(file: File, maxSize = 160): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let { width, height } = img;
+          if (width > height) {
+            if (width > maxSize) { height = Math.round(height * maxSize / width); width = maxSize; }
+          } else {
+            if (height > maxSize) { width = Math.round(width * maxSize / height); height = maxSize; }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return reject('Canvas error');
+          ctx.drawImage(img, 0, 0, width, height);
+          // Use jpeg for smaller size, 0.85 quality
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
+        };
+        img.onerror = reject;
+        img.src = ev.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image too large (max 5MB).');
+      return;
+    }
+    try {
+      const dataUrl = await resizeToDataUrl(file);
+      setLocalProfile(p => ({ ...p, photoDataUrl: dataUrl }));
+    } catch (err) {
+      toast.error('Could not process image.');
+    } finally {
+      // allow re-select same file
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const removePhoto = () => {
+    setLocalProfile(p => ({ ...p, photoDataUrl: undefined }));
+  };
 
   const handleSave = async () => {
     setLoading(true);
@@ -31,7 +90,8 @@ export default function ProfileModal({ isOpen, onClose, onProfileUpdated }: {
         name: localProfile.name,
         email: localProfile.email,
         phone: localProfile.phone,
-      });
+        photoDataUrl: localProfile.photoDataUrl,
+      } as any);
       // Re-load to pick up any merge/enrichment from Supabase side (name/email/phone only)
       if (loadProfile) {
         await loadProfile();
@@ -57,6 +117,42 @@ export default function ProfileModal({ isOpen, onClose, onProfileUpdated }: {
         </div>
 
         <div className="space-y-6">
+          {/* Profile Photo */}
+          <div>
+            <label className="block text-sm mb-1">Photo</label>
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-full overflow-hidden bg-zinc-800 border border-zinc-700 flex-shrink-0">
+                {localProfile.photoDataUrl ? (
+                  <img src={localProfile.photoDataUrl} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-zinc-400 text-xl font-medium">
+                    {localProfile.name ? localProfile.name.split(/\s+/).map(w => w[0]).slice(0,2).join('').toUpperCase() : '👤'}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-sm"
+                >
+                  {localProfile.photoDataUrl ? 'Change photo' : 'Upload photo'}
+                </button>
+                {localProfile.photoDataUrl && (
+                  <button type="button" onClick={removePhoto} className="px-4 py-1 text-xs text-red-400 hover:text-red-300">Remove</button>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handlePhotoChange}
+                />
+              </div>
+            </div>
+            <p className="text-[10px] text-zinc-500 mt-1">Small photo stored locally (shown in dashboard &amp; settings).</p>
+          </div>
+
           <div>
             <label className="block text-sm mb-1">Name</label>
             <input value={localProfile.name} onChange={e => setLocalProfile(p => ({...p, name: e.target.value}))} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4" />

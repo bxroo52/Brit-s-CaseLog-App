@@ -108,6 +108,8 @@ export interface UserProfile {
   invoiceNotes?: string; // footer or notes on invoices, professional only
   // Optional logo support (base64 data URL, small PNG/SVG recommended)
   logoDataUrl?: string;
+  // Small profile photo for UI (avatar). Stored only locally in Dexie.
+  photoDataUrl?: string;
   updatedAt: string;
 }
 

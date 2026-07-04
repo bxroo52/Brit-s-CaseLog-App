@@ -863,17 +863,31 @@ export default function CaseLogApp() {
   // Dashboard cards
   const Dashboard = () => (
     <div className="space-y-6">
-      <div className="flex items-end justify-between">
-        <div>
-          {(() => {
-            const first = getFirstName(profile?.name);
-            return (
-              <h1 className="text-3xl font-semibold tracking-tighter">
-                {first ? `Welcome back, ${first}.` : 'Welcome back.'}
-              </h1>
-            );
-          })()}
-          <p className="text-muted-foreground">Tiny logs beat giant catch-up sessions.</p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          {/* Profile photo next to greeting name */}
+          {profile?.photoDataUrl ? (
+            <img
+              src={profile.photoDataUrl}
+              alt="Profile"
+              className="w-11 h-11 rounded-full object-cover border border-zinc-800 flex-shrink-0"
+            />
+          ) : (
+            <div className="w-11 h-11 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-lg flex-shrink-0">
+              {profile?.name ? profile.name.split(/\s+/).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase() : '👤'}
+            </div>
+          )}
+          <div>
+            {(() => {
+              const first = getFirstName(profile?.name);
+              return (
+                <h1 className="text-3xl font-semibold tracking-tighter">
+                  {first ? `Welcome back, ${first}.` : 'Welcome back.'}
+                </h1>
+              );
+            })()}
+            <p className="text-muted-foreground">Tiny logs beat giant catch-up sessions.</p>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button onClick={() => quickLogTime()} className="gap-2">
@@ -1502,11 +1516,29 @@ export default function CaseLogApp() {
 
     return (
       <div className="max-w-md mx-auto px-4 py-6 space-y-6 text-sm overflow-y-auto">
+        {/* Profile header in Settings/Account: photo next to name */}
+        <div
+          onClick={() => setProfileModalOpen(true)}
+          className="flex items-center gap-3 bg-card border rounded-xl px-4 py-3 cursor-pointer active:opacity-80"
+        >
+          {profile?.photoDataUrl ? (
+            <img src={profile.photoDataUrl} alt="Profile" className="w-12 h-12 rounded-full object-cover border border-zinc-700" />
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xl flex-shrink-0">
+              {profile?.name ? profile.name.split(/\s+/).map((w: string) => w[0]).slice(0,2).join('').toUpperCase() : '👤'}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="font-medium text-base truncate">{profile?.name || 'Set your name'}</div>
+            <div className="text-xs text-muted-foreground truncate">{profile?.email || 'Tap to edit profile'}</div>
+          </div>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </div>
+
         {/* SETTINGS */}
         <div>
           <div className="px-4 pb-2 text-xs font-semibold text-muted-foreground tracking-wider">SETTINGS</div>
           <div className="bg-card border rounded-xl overflow-hidden">
-            {renderItem('Profile')}
             {renderItem('Activity Rates')}
             {renderItem('Siri Shortcuts')}
             {renderItem('Integrations')}

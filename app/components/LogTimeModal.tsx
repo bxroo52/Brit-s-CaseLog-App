@@ -104,8 +104,8 @@ export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSucce
       setDescription('');
 
     } catch (err: any) {
-      showToast('Failed to log time: ' + err.message, 'error');
-      // Note: For full rollback you would need to remove the optimistic entry from parent state
+      showToast('Failed to log time. Please try again.', 'error');
+      // Rollback of optimistic temp would be handled by parent if onError callback existed
     } finally {
       setLoading(false);
     }

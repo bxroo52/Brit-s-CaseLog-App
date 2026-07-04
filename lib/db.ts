@@ -347,6 +347,7 @@ export async function getUserProfile(): Promise<UserProfile> {
       courtVisitorId: 'CV-48291',
       organization: 'Alaska Court System',
       invoiceNotes: 'Payment due within 30 days. Please reference the case number on all remittances. This statement is submitted for the Superior Court of the State of Alaska.',
+      photoDataUrl: undefined,
       updatedAt: new Date().toISOString(),
     };
     await db.profile.put(profile);
