@@ -876,7 +876,7 @@ export default function CaseLogApp() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          {/* Profile photo next to greeting name */}
+          {/* Profile photo next to greeting name - horizontal layout */}
           {profile?.photoDataUrl ? (
             <img
               src={profile.photoDataUrl}
@@ -888,7 +888,7 @@ export default function CaseLogApp() {
               {profile?.name ? profile.name.split(/\s+/).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase() : '👤'}
             </div>
           )}
-          <div>
+          <div className="flex flex-col">
             {(() => {
               const first = getFirstName(profile?.name);
               return (

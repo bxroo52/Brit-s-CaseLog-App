@@ -324,11 +324,12 @@ export async function deleteExpense(id: string): Promise<void> {
 
 const DEFAULT_PROFILE_ID = 'profile';
 
-export async function getUserProfile(): Promise<UserProfile> {
-  let profile = await db.profile.get(DEFAULT_PROFILE_ID);
+export async function getUserProfile(userId?: string): Promise<UserProfile> {
+  const profileId = userId || DEFAULT_PROFILE_ID;
+  let profile = await db.profile.get(profileId);
   if (!profile) {
     profile = {
-      id: DEFAULT_PROFILE_ID,
+      id: profileId,
       name: '',  // user sets via Profile in Settings/Account; do not seed demo name
       title: 'Court Visitor',
       email: '',
@@ -346,11 +347,13 @@ export async function getUserProfile(): Promise<UserProfile> {
   return profile;
 }
 
-export async function updateUserProfile(updates: Partial<Omit<UserProfile, 'id'>>): Promise<UserProfile> {
-  const existing = await getUserProfile();
+export async function updateUserProfile(updates: Partial<Omit<UserProfile, 'id'>>, userId?: string): Promise<UserProfile> {
+  const profileId = userId || DEFAULT_PROFILE_ID;
+  const existing = await getUserProfile(profileId);
   const updated: UserProfile = {
     ...existing,
     ...updates,
+    id: profileId,
     updatedAt: new Date().toISOString(),
   };
   await db.profile.put(updated);

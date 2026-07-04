@@ -229,10 +229,11 @@ export const useAppStore = create<AppState>()(
       },
 
       loadProfile: async () => {
-        let profile = await getUserProfile();
+        const currentUserId = get().user?.id;
+        let profile = await getUserProfile(currentUserId);
 
         // Try to enrich/merge with Supabase profiles table if available
-        if (supabase && profile) {
+        if (supabase && currentUserId) {
           try {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
@@ -551,17 +552,18 @@ export const useAppStore = create<AppState>()(
 
       // ---- Profile ----
       saveProfile: async (updates) => {
+        const currentUserId = get().user?.id;
         const prevProfile = get().profile;
         // Optimistic update immediately
         const optimistic = {
-          ...(prevProfile || { id: 'profile', updatedAt: new Date().toISOString() }),
+          ...(prevProfile || { id: currentUserId || 'profile', updatedAt: new Date().toISOString() }),
           ...updates,
           updatedAt: new Date().toISOString(),
         } as UserProfile;
         set({ profile: optimistic });
 
         try {
-          const updated = await updateUserProfile(updates);
+          const updated = await updateUserProfile(updates, currentUserId);
           set({ profile: updated });
 
           // Also sync basic fields (no photo) to Supabase profiles table if available
