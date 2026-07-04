@@ -105,7 +105,10 @@ export default function NewCaseModal({ isOpen, onClose }: { isOpen: boolean; onC
             <select value={form.assignment_type} onChange={e => handleChange('assignment_type', e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4">
               <option>Initial</option>
               <option>Review</option>
-              <option>Three year</option>
+              <option>Three-Year Review</option>
+              <option>Medication</option>
+              <option>Follow-up</option>
+              <option>Other</option>
             </select>
           </div>
 

@@ -15,6 +15,7 @@ import TimeEntriesRealtime from '@/app/components/TimeEntriesRealtime';
 import OpenCasesRealtime from '@/app/components/OpenCasesRealtime';
 import DashboardStatsRealtime from '@/app/components/DashboardStatsRealtime';
 import { generateBillingSpreadsheet } from '@/lib/generateBillingSpreadsheet';
+import { generateBillingSummaryExcel } from '@/lib/generateBillingSummary';
 import { TimeLogDialog } from '@/components/TimeLogDialog';
 import { ExpenseDialog } from '@/components/ExpenseDialog';
 import LogExpenseModal from '@/app/components/LogExpenseModal';
@@ -893,6 +894,16 @@ export default function CaseLogApp() {
     toast('CSV exported. Feed it to your accounting overlord.');
   };
 
+  // New Billing Summary Excel export (replaces old "Download CSV" for the button)
+  const exportBillingSummary = () => {
+    if (!currentSummary) {
+      toast('Load a month preview first (use Refresh Preview or switch to Billing tab).');
+      return;
+    }
+    generateBillingSummaryExcel(currentSummary, profile, billingMonth);
+    toast('Billing Summary Excel downloaded.');
+  };
+
   const months = getRecentMonths(8);
 
   // Dashboard cards
@@ -1503,10 +1514,10 @@ export default function CaseLogApp() {
           <div className="pt-1 space-y-2 sm:space-y-0 sm:flex sm:gap-3 sm:justify-end">
             <Button 
               variant="secondary" 
-              onClick={exportCSV}
+              onClick={exportBillingSummary}
               className="w-full sm:w-auto h-11 text-base"
             >
-              Download CSV
+              Billing Summary
             </Button>
             <Button 
               onClick={handleGenerateBilling} 

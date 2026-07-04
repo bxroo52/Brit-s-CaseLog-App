@@ -2,8 +2,10 @@ import { ActivityType, AssignmentType, ExpenseType } from '@/types';
 
 export const ASSIGNMENT_TYPES: AssignmentType[] = [
   'Initial',
-  'Follow-up',
   'Review',
+  'Three-Year Review',
+  'Medication',
+  'Follow-up',
   'Other',
 ];
 

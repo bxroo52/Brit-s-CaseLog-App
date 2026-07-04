@@ -533,7 +533,10 @@ export async function buildMonthlyBillingSummary(billingMonth: string, userId?: 
       caseId: c.id,
       caseNumber: c.caseNumber,
       respondentName: `${c.respondentFirstName} ${c.respondentLastName}`,
+      respondentFirstName: c.respondentFirstName,
+      respondentLastName: c.respondentLastName,
       assignmentType: c.assignmentType,
+      status: c.status,
       hourlyRate: c.hourlyRate,
       firstTimeBilling: c.firstTimeBilling,
       appointmentDate: c.appointmentDate,
@@ -595,7 +598,11 @@ export async function buildMonthlyBillingSummary(billingMonth: string, userId?: 
       openCourtTime: Math.round(c.openCourtTime * 10) / 10,
       outOfCourtTime: Math.round(c.outOfCourtTime * 10) / 10,
     }))
-    .sort((a, b) => (a.respondentLastName || '').localeCompare(b.respondentLastName || ''));
+    .sort((a, b) => {
+      const last = (a.respondentLastName || '').localeCompare(b.respondentLastName || '');
+      if (last !== 0) return last;
+      return (a.respondentFirstName || '').localeCompare(b.respondentFirstName || '');
+    });
 
   const overallTimeHours = caseSummaries.reduce((s, c) => s + c.timeTotal, 0);
   const overallTimeAmount = caseSummaries.reduce((s, c) => s + c.timeAmount, 0);

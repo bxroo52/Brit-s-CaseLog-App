@@ -2,7 +2,7 @@
  * CaseLog Data Models (aligned to provided schema)
  */
 
-export type AssignmentType = 'Initial' | 'Follow-up' | 'Review' | 'Other';
+export type AssignmentType = 'Initial' | 'Review' | 'Three-Year Review' | 'Medication' | 'Follow-up' | 'Other';
 export type CaseStatus = 'Open' | 'Closed' | 'On Hold' | 'Completed';
 
 export interface Case {

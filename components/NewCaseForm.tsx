@@ -127,8 +127,10 @@ export default function NewCaseForm({ onSubmit, onClose, existingCase, onDelete 
                 className="w-full bg-[#2C2C2E] border border-[#3A3A3C] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#0A84FF]"
               >
                 <option value="Initial">Initial</option>
-                <option value="Follow-up">Follow-up</option>
                 <option value="Review">Review</option>
+                <option value="Three-Year Review">Three-Year Review</option>
+                <option value="Medication">Medication</option>
+                <option value="Follow-up">Follow-up</option>
                 <option value="Other">Other</option>
               </select>
             </div>
