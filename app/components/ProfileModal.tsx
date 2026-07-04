@@ -1,61 +1,49 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useAppStore } from '@/stores/useAppStore';
 
 export default function ProfileModal({ isOpen, onClose, onProfileUpdated }: { 
   isOpen: boolean; 
   onClose: () => void; 
   onProfileUpdated?: () => void;
 }) {
-  const [profile, setProfile] = useState({ name: '', email: '', phone: '' });
+  const { profile: storeProfile, saveProfile, loadProfile } = useAppStore();
+  const [localProfile, setLocalProfile] = useState({ name: '', email: '', phone: '' });
   const [loading, setLoading] = useState(false);
 
+  // Load from Zustand/Dexie (works offline + after saves). Supabase enrichment happens in store loadProfile.
   useEffect(() => {
     if (!isOpen) return;
-
-    async function load() {
-      if (!supabase) {
-        setProfile({ name: '', email: '', phone: '' });
-        return;
-      }
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data } = await supabase
-        .from('profiles')
-        .select('name, email, phone')
-        .eq('id', user.id)
-        .single();
-
-      if (data) {
-        setProfile(data);
-      } else {
-        setProfile({ name: '', email: user.email || '', phone: '' });
-      }
-    }
-    load();
-  }, [isOpen]);
+    const p = storeProfile as any;
+    setLocalProfile({
+      name: p?.name || '',
+      email: p?.email || '',
+      phone: p?.phone || '',
+    });
+  }, [isOpen, storeProfile]);
 
   const handleSave = async () => {
-    if (!supabase) {
+    setLoading(true);
+    try {
+      // Always save via store: this writes to Zustand + Dexie, and also upserts Supabase 'profiles' (if configured + authed)
+      await saveProfile({
+        name: localProfile.name,
+        email: localProfile.email,
+        phone: localProfile.phone,
+      });
+      // Re-load to pick up any merge/enrichment from Supabase side (name/email/phone only)
+      if (loadProfile) {
+        await loadProfile();
+      }
+    } catch (e) {
+      console.error('Failed to save profile:', e);
+      // Continue to close; local save should have succeeded via Dexie at minimum
+    } finally {
       setLoading(false);
       onClose();
-      return;
+      if (onProfileUpdated) onProfileUpdated();
     }
-    setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      await supabase.from('profiles').upsert({
-        id: user.id,
-        name: profile.name,
-        email: profile.email,
-        phone: profile.phone,
-      });
-    }
-    setLoading(false);
-    onClose();
-    if (onProfileUpdated) onProfileUpdated();
   };
 
   if (!isOpen) return null;
@@ -71,15 +59,15 @@ export default function ProfileModal({ isOpen, onClose, onProfileUpdated }: {
         <div className="space-y-6">
           <div>
             <label className="block text-sm mb-1">Name</label>
-            <input value={profile.name} onChange={e => setProfile(p => ({...p, name: e.target.value}))} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4" />
+            <input value={localProfile.name} onChange={e => setLocalProfile(p => ({...p, name: e.target.value}))} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4" />
           </div>
           <div>
             <label className="block text-sm mb-1">Email</label>
-            <input value={profile.email} onChange={e => setProfile(p => ({...p, email: e.target.value}))} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4" />
+            <input value={localProfile.email} onChange={e => setLocalProfile(p => ({...p, email: e.target.value}))} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4" />
           </div>
           <div>
             <label className="block text-sm mb-1">Phone</label>
-            <input value={profile.phone} onChange={e => setProfile(p => ({...p, phone: e.target.value}))} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4" />
+            <input value={localProfile.phone} onChange={e => setLocalProfile(p => ({...p, phone: e.target.value}))} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4" />
           </div>
         </div>
 

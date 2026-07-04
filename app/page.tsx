@@ -363,6 +363,7 @@ export default function CaseLogApp() {
     hourlyRateMax,
     billingSummary,
     loadAllData,
+    loadProfile,
     setSelectedMonth,
     loadBillingSummary,
     generateBilling,
@@ -629,6 +630,21 @@ export default function CaseLogApp() {
   // Dedicated Activity Rates dialog
   const [activityRatesOpen, setActivityRatesOpen] = useState(false);
 
+  // Helper: robust first name extraction from profile.name (handles "First Last", "Last, First", etc.)
+  const getFirstName = (fullName?: string | null): string | null => {
+    if (!fullName || typeof fullName !== 'string') return null;
+    const trimmed = fullName.trim();
+    if (!trimmed) return null;
+    if (trimmed.includes(',')) {
+      // "Last, First" or similar -> prefer part after comma
+      const parts = trimmed.split(',');
+      const candidate = (parts[1] || parts[0]).trim();
+      return candidate || null;
+    }
+    // "First Last" or single token
+    return trimmed.split(/\s+/)[0] || null;
+  };
+
   // Initialize Dexie + Zustand on mount
   useEffect(() => {
     (async () => {
@@ -849,7 +865,14 @@ export default function CaseLogApp() {
     <div className="space-y-6">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tighter">Welcome back.</h1>
+          {(() => {
+            const first = getFirstName(profile?.name);
+            return (
+              <h1 className="text-3xl font-semibold tracking-tighter">
+                {first ? `Welcome back, ${first}.` : 'Welcome back.'}
+              </h1>
+            );
+          })()}
           <p className="text-muted-foreground">Tiny logs beat giant catch-up sessions.</p>
         </div>
         <div className="flex gap-2">
@@ -1623,6 +1646,7 @@ export default function CaseLogApp() {
       <ProfileModal
         isOpen={profileModalOpen}
         onClose={() => setProfileModalOpen(false)}
+        onProfileUpdated={() => loadProfile?.()}
       />
 
       <LogExpenseModal

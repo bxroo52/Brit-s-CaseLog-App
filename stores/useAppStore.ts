@@ -586,6 +586,7 @@ export const useAppStore = create<AppState>()(
             await get().claimLegacyDataForCurrentUser();
             // Load user's (newly created) data
             await get().loadAllData();
+            await get().loadProfile();
             toast.success('Account created and logged in!');
           } else if (data.user) {
             // Email confirmation still required by project settings.
@@ -614,6 +615,7 @@ export const useAppStore = create<AppState>()(
             await get().claimLegacyDataForCurrentUser();
             // Load only this user's data (cases, entries, expenses)
             await get().loadAllData();
+            await get().loadProfile();
             toast.success('Logged in successfully.');
           }
         } catch (e: any) {
@@ -696,6 +698,7 @@ export const useAppStore = create<AppState>()(
           await get().claimLegacyDataForCurrentUser();
           // Ensure we load only this user's data (in case initial loadAll ran pre-auth)
           await get().loadAllData();
+          await get().loadProfile();
         }
         // Listen for auth changes (e.g. login via listener, or token refresh)
         supabase.auth.onAuthStateChange((_event, session) => {
@@ -703,6 +706,7 @@ export const useAppStore = create<AppState>()(
             set({ user: session.user, isAuthenticated: true });
             get().claimLegacyDataForCurrentUser().then(() => {
               get().loadAllData().catch(() => {});
+              get().loadProfile().catch(() => {});
             }).catch(() => {});
           } else {
             set({ user: null, isAuthenticated: false });

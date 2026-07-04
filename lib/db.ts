@@ -338,10 +338,10 @@ export async function getUserProfile(): Promise<UserProfile> {
   if (!profile) {
     profile = {
       id: DEFAULT_PROFILE_ID,
-      name: 'Alex Rivera',
+      name: '',  // user sets via Profile in Settings/Account; do not seed demo name
       title: 'Court Visitor',
-      email: 'alex.rivera@alaskacourts.gov',
-      phone: '(907) 555-0142',
+      email: '',
+      phone: '',
       address: '123 Court Plaza, Suite 204',
       cityStateZip: 'Anchorage, AK 99501',
       courtVisitorId: 'CV-48291',
