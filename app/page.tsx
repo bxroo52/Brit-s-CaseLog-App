@@ -1304,12 +1304,14 @@ export default function CaseLogApp() {
     const [activityType, setActivityType] = useState('Contact');
     const [notes, setNotes] = useState('');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [calendarFrom, setCalendarFrom] = useState('');
+    const [calendarTo, setCalendarTo] = useState('');
 
-    // Timer state: base + live
-    const [baseHours, setBaseHours] = useState(0);
+    // Timer state
+    const [committedHours, setCommittedHours] = useState(0);
     const [isRunning, setIsRunning] = useState(false);
     const [startTime, setStartTime] = useState<Date | null>(null);
-    const [liveHours, setLiveHours] = useState(0);
+    const [liveAddHours, setLiveAddHours] = useState(0);
 
     // Live update interval
     useEffect(() => {
@@ -1317,55 +1319,55 @@ export default function CaseLogApp() {
       if (isRunning && startTime) {
         interval = setInterval(() => {
           const elapsed = (Date.now() - startTime.getTime()) / 1000 / 60 / 60;
-          setLiveHours(Math.round(elapsed * 10) / 10);
+          setLiveAddHours(Math.round(elapsed * 10) / 10);
         }, 1000);
       } else {
-        setLiveHours(0);
+        setLiveAddHours(0);
       }
       return () => {
         if (interval) clearInterval(interval);
       };
     }, [isRunning, startTime]);
 
-    const currentHours = Math.round((baseHours + liveHours) * 10) / 10;
+    const currentHours = Math.round((committedHours + liveAddHours) * 10) / 10;
 
     const startTimer = () => {
       if (!isRunning) {
         setStartTime(new Date());
         setIsRunning(true);
-        setLiveHours(0);
+        setLiveAddHours(0);
       }
     };
 
     const stopTimer = () => {
       if (isRunning && startTime) {
         const elapsed = (Date.now() - startTime.getTime()) / 1000 / 60 / 60;
-        const newBase = Math.round((baseHours + elapsed) * 10) / 10;
-        setBaseHours(newBase);
+        const newCommitted = Math.round((committedHours + elapsed) * 10) / 10;
+        setCommittedHours(newCommitted);
         setIsRunning(false);
         setStartTime(null);
-        setLiveHours(0);
+        setLiveAddHours(0);
       }
     };
 
     const resetTimer = () => {
       setIsRunning(false);
       setStartTime(null);
-      setLiveHours(0);
-      setBaseHours(0);
+      setLiveAddHours(0);
+      setCommittedHours(0);
     };
 
     const addQuickTime = (add: number) => {
       if (isRunning) {
         stopTimer();
       }
-      const newBase = Math.round((baseHours + add) * 10) / 10;
-      setBaseHours(Math.max(0, newBase));
+      const newCommitted = Math.round((committedHours + add) * 10) / 10;
+      setCommittedHours(Math.max(0, newCommitted));
     };
 
     const setManualHours = (val: number) => {
       if (isRunning) stopTimer();
-      setBaseHours(Math.max(0, Math.round(val * 10) / 10));
+      setCommittedHours(Math.max(0, Math.round(val * 10) / 10));
     };
 
     const handleLogTime = async () => {
@@ -1471,7 +1473,7 @@ export default function CaseLogApp() {
               type="number"
               step="0.1"
               min="0"
-              value={currentHours || ''}
+              value={committedHours || ''}
               onChange={(e) => {
                 const v = parseFloat(e.target.value) || 0;
                 setManualHours(v);
@@ -1521,27 +1523,41 @@ export default function CaseLogApp() {
           </div>
         </div>
 
-        {/* Calendar option (basic) */}
-        <div className="p-3 bg-zinc-900/50 rounded-2xl text-sm">
-          <div className="flex items-center justify-between">
+        {/* Create from calendar */}
+        <div className="p-4 bg-zinc-900 rounded-2xl text-sm space-y-3">
+          <div className="font-medium">Create from calendar</div>
+          <div className="text-xs text-muted-foreground">Enter start and end times for a meeting/event to calculate duration.</div>
+          <div className="grid grid-cols-2 gap-2">
             <div>
-              <div className="font-medium">Create from calendar</div>
-              <div className="text-xs text-muted-foreground">Pick a past event or meeting time</div>
+              <label className="text-[10px] text-muted-foreground">From</label>
+              <Input type="datetime-local" value={calendarFrom} onChange={e => setCalendarFrom(e.target.value)} className="text-xs" />
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                // Simple: set date to today or prompt
-                const d = prompt('Enter date (YYYY-MM-DD) or leave for today', date);
-                if (d) setDate(d);
-                else setDate(new Date().toISOString().split('T')[0]);
-                toast.info('Date updated. Add details and log.');
-              }}
-            >
-              Choose
-            </Button>
+            <div>
+              <label className="text-[10px] text-muted-foreground">To</label>
+              <Input type="datetime-local" value={calendarTo} onChange={e => setCalendarTo(e.target.value)} className="text-xs" />
+            </div>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={() => {
+              if (calendarFrom && calendarTo) {
+                const from = new Date(calendarFrom);
+                const to = new Date(calendarTo);
+                const diffH = (to.getTime() - from.getTime()) / 1000 / 60 / 60;
+                const rounded = Math.max(0, Math.round(diffH * 10) / 10);
+                setCommittedHours(rounded);
+                setDate(from.toISOString().split('T')[0]);
+                if (isRunning) stopTimer();
+                toast.info(`Set ${rounded}h from calendar times.`);
+              } else {
+                toast.error('Please enter both from and to times.');
+              }
+            }}
+          >
+            Calculate duration from times
+          </Button>
         </div>
 
         {/* Actions */}
