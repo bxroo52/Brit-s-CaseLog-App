@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useAppStore } from '@/stores/useAppStore';
 import { showToast } from './Toast';
 
 interface LogExpenseModalProps {
@@ -12,35 +12,20 @@ interface LogExpenseModalProps {
 }
 
 export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSuccess }: LogExpenseModalProps) {
-  const [cases, setCases] = useState<any[]>([]);
+  const { getOpenCases, addExpense } = useAppStore();
   const [selectedCase, setSelectedCase] = useState('');
   const [expenseType, setExpenseType] = useState('Parking');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Use the exact same data source as the Dashboard’s Open Cases section and Log Time form (Zustand store / Dexie)
+  const cases = getOpenCases ? getOpenCases() : [];
+
   useEffect(() => {
     if (!isOpen) return;
 
-    async function loadCases() {
-      if (!supabase) {
-        setCases([]);
-        return;
-      }
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data } = await supabase
-        .from('cases')
-        .select('id, case_number, respondent_name')
-        .eq('user_id', user.id)
-        .eq('status', 'Open')
-        .order('created_at', { ascending: false });
-      setCases(data || []);
-    }
-    loadCases();
-
-    // Ensure form starts clean (blank description, no default text) every time dialog opens
+    // Reset form when opening (ensure blank, etc.)
     setSelectedCase('');
     setExpenseType('Parking');
     setAmount('');
@@ -48,29 +33,40 @@ export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSu
   }, [isOpen]);
 
   const handleLogExpense = async () => {
-    if (!selectedCase || !amount) {
-      showToast('Please select a case and enter amount', 'error');
+    const amountNum = parseFloat(amount);
+    const desc = description.trim();
+
+    if (!selectedCase) {
+      showToast('Please select a case', 'error');
       return;
     }
-
-    if (!supabase) {
-      showToast('Supabase not configured', 'error');
-      setLoading(false);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      showToast('Amount must be greater than 0', 'error');
+      return;
+    }
+    if (!desc) {
+      showToast('Description is required', 'error');
       return;
     }
 
     setLoading(true);
 
-    // Create optimistic expense
+    // Create optimistic expense in format expected by ExpensesRealtime (for display)
     const tempId = 'temp-exp-' + Date.now();
+    const selectedCaseObj = cases.find(c => c.id === selectedCase);
+    const optimisticCases = selectedCaseObj ? {
+      case_number: selectedCaseObj.caseNumber,
+      title: `${selectedCaseObj.respondentLastName || ''}, ${selectedCaseObj.respondentFirstName || ''}`.replace(/^, |, $/, '').trim(),
+    } : undefined;
+
     const optimisticEntry = {
       id: tempId,
       case_id: selectedCase,
       type: expenseType,
-      amount: parseFloat(amount),
-      description: description.trim(),
+      amount: amountNum,
+      description: desc,
       date: new Date().toISOString().split('T')[0],
-      cases: cases.find(c => c.id === selectedCase),
+      cases: optimisticCases,
       _optimistic: true,
     };
 
@@ -79,19 +75,15 @@ export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSu
     }
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not logged in');
-
-      const { error } = await supabase.from('expenses').insert({
-        user_id: user.id,
-        case_id: selectedCase,
-        type: expenseType,
-        amount: parseFloat(amount),
-        description: description.trim(),
+      // Use store action for reliable Dexie save + sync queue (same as Log Time)
+      await addExpense({
+        caseId: selectedCase,
         date: new Date().toISOString().split('T')[0],
+        expenseType: expenseType,
+        amount: amountNum,
+        description: desc,
       });
-
-      if (error) throw error;
+      // Store handles local save, queue, and its own success toast
 
       showToast('Expense logged successfully!');
       onClose();
@@ -104,6 +96,7 @@ export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSu
       setDescription('');
 
     } catch (err: any) {
+      console.error('Failed to log expense (store addExpense):', err);
       showToast('Failed to log expense. Please try again.', 'error');
     } finally {
       setLoading(false);
@@ -122,10 +115,11 @@ export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSu
             <label className="block text-sm text-zinc-400 mb-2">Case</label>
             <select value={selectedCase} onChange={e => setSelectedCase(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4">
               <option value="">Select a case...</option>
-              {cases.map(c => {
-                const name = c.respondent_name || 'Unknown';
-                return <option key={c.id} value={c.id}>{name} — {c.case_number}</option>;
-              })}
+              {cases.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.respondentLastName}, {c.respondentFirstName} — {c.caseNumber}
+                </option>
+              ))}
             </select>
           </div>
 
