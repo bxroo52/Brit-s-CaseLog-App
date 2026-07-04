@@ -398,6 +398,7 @@ export const useAppStore = create<AppState>()(
           toast.success('Time entry saved.');
           return newEntry;
         } catch (e: any) {
+          console.error('addTimeEntry failed (Dexie/queue):', e);
           // Rollback
           set((state) => ({
             timeEntries: state.timeEntries.filter((t: any) => t.id !== newEntry.id),

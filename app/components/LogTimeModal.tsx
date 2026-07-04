@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useAppStore } from '@/stores/useAppStore';
-import { supabase } from '@/lib/supabase';
 import { showToast } from './Toast';
 
 interface LogTimeModalProps {
@@ -13,7 +12,7 @@ interface LogTimeModalProps {
 }
 
 export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSuccess }: LogTimeModalProps) {
-  const { getOpenCases } = useAppStore();
+  const { getOpenCases, addTimeEntry } = useAppStore();
   const [selectedCase, setSelectedCase] = useState('');
   const [selectedActivity, setSelectedActivity] = useState('Contact');
   const [hours, setHours] = useState('1');
@@ -25,59 +24,64 @@ export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSucce
   const cases = getOpenCases ? getOpenCases() : [];
 
   const handleLogTime = async () => {
+    const billableHoursNum = parseFloat(hours);
+    const desc = description.trim();
+
+    // Required fields check as per spec
     if (!selectedCase) {
       showToast('Please select a case', 'error');
       return;
     }
-
-    // Note: cases list now comes from store (same as Dashboard Open Cases), so dropdown will populate
-    // with respondent names + case numbers.
-
-    if (!supabase) {
-      showToast('Supabase not configured', 'error');
-      setLoading(false);
+    if (!selectedActivity) {
+      showToast('Please select an activity', 'error');
+      return;
+    }
+    if (isNaN(billableHoursNum) || billableHoursNum <= 0) {
+      showToast('Billable Hours must be greater than 0', 'error');
+      return;
+    }
+    if (!desc) {
+      showToast('Description is required', 'error');
       return;
     }
 
     setLoading(true);
 
-    // Create optimistic entry
+    // Create optimistic entry in format expected by TimeEntriesRealtime (snake-ish keys for display)
     const tempId = 'temp-' + Date.now();
+    const selectedCaseObj = cases.find(c => c.id === selectedCase);
+    const optimisticCases = selectedCaseObj ? {
+      case_number: selectedCaseObj.caseNumber,
+      title: `${selectedCaseObj.respondentLastName || ''}, ${selectedCaseObj.respondentFirstName || ''}`.replace(/^, |, $/, '').trim(),
+    } : undefined;
+
     const optimisticEntry = {
       id: tempId,
       case_id: selectedCase,
       activity_type: selectedActivity,
-      hours: parseFloat(hours),
+      hours: billableHoursNum,
       rate: 50,
-      description: description.trim(),
+      description: desc,
       date: new Date().toISOString().split('T')[0],
-      cases: cases.find(c => c.id === selectedCase),
-      _optimistic: true, // flag for UI
+      cases: optimisticCases,
+      _optimistic: true,
     };
 
-    // Optimistic UI update (instant)
+    // Optimistic UI update (instant) for the live list
     if (onOptimisticAdd) {
       onOptimisticAdd(optimisticEntry);
     }
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not logged in');
-
-      const { data: rateData } = await supabase.from('hourly_rates').select('rate').eq('user_id', user.id).single();
-      const rate = rateData?.rate || 50;
-
-      const { error } = await supabase.from('time_entries').insert({
-        user_id: user.id,
-        case_id: selectedCase,
-        activity_type: selectedActivity,
-        hours: parseFloat(hours),
-        rate: rate,
-        description: description.trim(),
+      // Use store action for reliable Dexie save + sync queue (instead of direct Supabase which was failing due to schema/FK/sync issues)
+      await addTimeEntry({
+        caseId: selectedCase,
         date: new Date().toISOString().split('T')[0],
+        activityType: selectedActivity,
+        billableHours: billableHoursNum,
+        description: desc,
       });
-
-      if (error) throw error;
+      // Store handles rounding, local save, queue, and its own success toast ("Time entry saved.")
 
       showToast('Time logged successfully!');
       onClose();
@@ -90,8 +94,10 @@ export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSucce
       setDescription('');
 
     } catch (err: any) {
+      console.error('Failed to log time (store addTimeEntry):', err);
+      // Store already showed error toast and rolled back; show the reported error too for now
       showToast('Failed to log time. Please try again.', 'error');
-      // Rollback of optimistic temp would be handled by parent if onError callback existed
+      // Note: optimistic temp may remain visible until manual clear or next success
     } finally {
       setLoading(false);
     }
