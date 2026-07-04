@@ -100,24 +100,22 @@ export default function TimeEntriesRealtime({ optimisticEntries = [], onClearOpt
           return (
             <div 
               key={entry.id || index} 
-              className={`py-1 border-b border-zinc-800 text-[9px] leading-tight ${isOptimistic ? 'opacity-70' : ''}`}
+              className={`py-1.5 border-b border-zinc-800 text-[9px] leading-tight ${isOptimistic ? 'opacity-70' : ''}`}
             >
-              <div className="flex justify-between text-[9px] text-zinc-500">
-                <span>{formatDate(entry.date, 'M/d')}</span>
-                <span className="font-semibold text-zinc-300">${amount}</span>
-              </div>
-              <div className="font-medium truncate text-zinc-100">
-                {entry.cases?.case_number} {entry.cases?.title}
+              <div className="text-[8px] text-zinc-500 mb-0.5">{formatDate(entry.date, 'M/d')}</div>
+              <div className="font-semibold text-[10px] leading-tight mb-0.5 text-zinc-100 break-words">
+                {entry.cases?.case_number} — {entry.cases?.title}
                 {isOptimistic && <span className="text-[7px] ml-1 bg-yellow-600 px-0.5 rounded">Saving</span>}
               </div>
-              <div className="text-zinc-400 truncate">
+              <div className="text-zinc-400 text-[8px] mb-0.5">
                 {entry.activity_type} • {entry.hours} hrs
               </div>
-              {entry.description && <div className="text-zinc-500 truncate">{entry.description}</div>}
+              <div className="font-semibold text-[10px] mb-0.5">${amount}</div>
+              {entry.description && <div className="text-zinc-500 text-[8px] leading-tight mb-0.5 break-words">{entry.description}</div>}
               {!isOptimistic && (
-                <div className="flex gap-2 mt-0.5 text-blue-400 text-[8px]">
-                  <button onClick={() => setEditingEntry(entry)} className="active:opacity-70">Edit</button>
-                  <button onClick={() => handleDelete(entry.id, isOptimistic)} className="text-red-400 active:opacity-70">Del</button>
+                <div className="text-[8px] mt-0.5">
+                  <div onClick={() => setEditingEntry(entry)} className="text-blue-400 active:opacity-70">Edit</div>
+                  <div onClick={() => handleDelete(entry.id, isOptimistic)} className="text-red-400 active:opacity-70">Delete</div>
                 </div>
               )}
             </div>

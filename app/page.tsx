@@ -894,38 +894,35 @@ export default function CaseLogApp() {
   // Dashboard cards
   const Dashboard = () => (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex flex-col">
-          <div className="flex items-center gap-3">
-            {/* Profile photo next to greeting name - horizontal layout */}
-            {profile?.photoDataUrl ? (
-              <img
-                src={profile.photoDataUrl}
-                alt="Profile"
-                className="w-11 h-11 rounded-full object-cover border border-zinc-800 flex-shrink-0"
-              />
-            ) : (
-              <div className="w-11 h-11 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-lg flex-shrink-0">
-                {profile?.name ? profile.name.split(/\s+/).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase() : '👤'}
-              </div>
-            )}
-            <h1 className="text-3xl font-semibold tracking-tighter">
-              {(() => {
-                const first = getFirstName(profile?.name);
-                return first ? `Welcome back, ${first}.` : 'Welcome back.';
-              })()}
-            </h1>
+      {/* Greeting - horizontal, clean single line next to photo */}
+      <div className="flex items-center gap-3">
+        {profile?.photoDataUrl ? (
+          <img
+            src={profile.photoDataUrl}
+            alt="Profile"
+            className="w-11 h-11 rounded-full object-cover border border-zinc-800 flex-shrink-0"
+          />
+        ) : (
+          <div className="w-11 h-11 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-lg flex-shrink-0">
+            {profile?.name ? profile.name.split(/\s+/).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase() : '👤'}
           </div>
-          <p className="text-muted-foreground mt-1 ml-[3.5rem]">Tiny logs beat giant catch-up sessions.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={() => quickLogTime()} className="gap-2">
-            <Clock className="h-4 w-4" /> Log Time
-          </Button>
-          <Button onClick={() => quickLogExpense()} variant="outline" className="gap-2">
-            <DollarSign className="h-4 w-4" /> Log Expense
-          </Button>
-        </div>
+        )}
+        <h1 className="text-3xl font-semibold tracking-tighter">
+          {(() => {
+            const first = getFirstName(profile?.name);
+            return first ? `Welcome back, ${first}.` : 'Welcome back.';
+          })()}
+        </h1>
+      </div>
+
+      {/* Log buttons - centered, just above the stats cards */}
+      <div className="flex justify-center gap-2">
+        <Button onClick={() => quickLogTime()} className="gap-2">
+          <Clock className="h-4 w-4" /> Log Time
+        </Button>
+        <Button onClick={() => quickLogExpense()} variant="outline" className="gap-2">
+          <DollarSign className="h-4 w-4" /> Log Expense
+        </Button>
       </div>
 
       {/* Stats - Realtime */}
@@ -1235,7 +1232,7 @@ export default function CaseLogApp() {
         onClearOptimistic={() => setOptimisticEntries([])} 
       />
 
-      <div className="rounded-xl border">
+      <div className="rounded-xl border overflow-hidden">
         <Table className="text-xs">
           <TableHeader>
             <TableRow>
@@ -1285,16 +1282,16 @@ export default function CaseLogApp() {
         onClearOptimistic={() => setOptimisticExpenses([])}
       />
 
-      <div className="rounded-xl border overflow-x-auto">
-        <Table>
+      <div className="rounded-xl border overflow-hidden">
+        <Table className="text-xs">
           <TableHeader>
             <TableRow>
-              <TableHead>Date</TableHead>
-              <TableHead>Case</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead></TableHead>
+              <TableHead className="p-1">Date</TableHead>
+              <TableHead className="p-1">Case</TableHead>
+              <TableHead className="p-1">Type</TableHead>
+              <TableHead className="p-1">Description</TableHead>
+              <TableHead className="p-1 text-right">Amount</TableHead>
+              <TableHead className="p-1 w-8"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1303,15 +1300,15 @@ export default function CaseLogApp() {
               const c = getCaseById(e.caseId);
               return (
                 <TableRow key={e.id}>
-                  <TableCell>{formatDate(e.date, 'MMM dd')}</TableCell>
-                  <TableCell>{`${c?.respondentFirstName} ${c?.respondentLastName}`}</TableCell>
-                  <TableCell>{e.expenseType}</TableCell>
-                  <TableCell className="text-sm max-w-[280px] truncate">{e.description}</TableCell>
-                  <TableCell className="text-right font-mono">{formatCurrency(e.amount)}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => editExpenseEntry(e)}><Edit2 className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteExpense(e)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  <TableCell className="p-1">{formatDate(e.date, 'M/d')}</TableCell>
+                  <TableCell className="p-1 font-medium text-[10px]">{`${c?.respondentFirstName} ${c?.respondentLastName}`}<div className="text-[8px] text-muted-foreground">{c?.caseNumber}</div></TableCell>
+                  <TableCell className="p-1 text-[10px]">{e.expenseType}</TableCell>
+                  <TableCell className="p-1 text-[10px] max-w-[200px] truncate">{e.description}</TableCell>
+                  <TableCell className="p-1 text-right font-mono text-[10px]">{formatCurrency(e.amount)}</TableCell>
+                  <TableCell className="p-1 text-right">
+                    <div className="flex gap-1 justify-end">
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => editExpenseEntry(e)}><Edit2 className="h-3 w-3" /></Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeleteExpense(e)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
                     </div>
                   </TableCell>
                 </TableRow>

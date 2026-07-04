@@ -67,18 +67,16 @@ export default function ExpensesRealtime({ optimisticEntries = [], onClearOptimi
             key={expense.id || index} 
             className={`py-1 border-b border-zinc-800 text-[9px] leading-tight ${isOptimistic ? 'opacity-70' : ''}`}
           >
-            <div className="flex justify-between text-[9px] text-zinc-500">
-              <span>{formatDate(expense.date, 'M/d')}</span>
-              <span className="font-semibold text-zinc-300">${amount}</span>
-            </div>
-            <div className="font-medium truncate text-zinc-100">
-              {expense.cases?.case_number} {expense.cases?.title}
+            <div className="text-[8px] text-zinc-500 mb-0.5">{formatDate(expense.date, 'M/d')}</div>
+            <div className="font-semibold text-[10px] leading-tight mb-0.5 text-zinc-100 break-words">
+              {expense.cases?.case_number} — {expense.cases?.title}
               {isOptimistic && <span className="text-[7px] ml-1 bg-yellow-600 px-0.5 rounded">Saving</span>}
             </div>
-            <div className="text-zinc-400 truncate">
+            <div className="text-zinc-400 text-[8px] mb-0.5">
               {expense.type}
             </div>
-            {expense.description && <div className="text-zinc-500 truncate">{expense.description}</div>}
+            <div className="font-semibold text-[10px] mb-0.5">${amount}</div>
+            {expense.description && <div className="text-zinc-500 text-[8px] leading-tight mb-0.5 break-words">{expense.description}</div>}
           </div>
         );
       })}
