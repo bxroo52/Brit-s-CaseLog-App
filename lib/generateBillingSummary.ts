@@ -77,10 +77,15 @@ export function generateBillingSummaryExcel(
   });
 
   // Build array-of-arrays for the sheet (header metadata + col headers + data + totals)
+  // Structure closely modeled on the discovered "Billing Summary Template FY24.xlsx" (Summary sheet)
+  // + includes the explicit fields requested (Type / First Time Billing)
   const aoa: any[][] = [
     ['Contractor Name', contractorName],
     ['Month & Year', monthYear],
     [], // blank row
+    // Note / instruction area (modeled on template)
+    ['', '', '', '', '', '', '', 'CVC Only', 'NOTES', ''],
+    // Header row - template base + user-requested fields
     [
       'Client Last Name',
       'Client First Name',
@@ -112,7 +117,7 @@ export function generateBillingSummaryExcel(
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-  // Reasonable column widths for readability
+  // Reasonable column widths for readability (aligned to template + extras)
   ws['!cols'] = [
     { wch: 20 }, // Client Last Name
     { wch: 18 }, // Client First Name
@@ -121,8 +126,8 @@ export function generateBillingSummaryExcel(
     { wch: 15 }, // Amount Billed
     { wch: 12 }, // Expenses
     { wch: 12 }, // Total
-    { wch: 20 }, // Type
-    { wch: 18 }, // First Time Billing
+    { wch: 18 }, // Type
+    { wch: 16 }, // First Time Billing
     { wch: 14 }, // Open/Closed
   ];
 
