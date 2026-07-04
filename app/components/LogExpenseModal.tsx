@@ -32,12 +32,19 @@ export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSu
 
       const { data } = await supabase
         .from('cases')
-        .select('id, case_number, title')
+        .select('id, case_number, respondent_name')
         .eq('user_id', user.id)
-        .eq('status', 'Open');
+        .eq('status', 'Open')
+        .order('created_at', { ascending: false });
       setCases(data || []);
     }
     loadCases();
+
+    // Ensure form starts clean (blank description, no default text) every time dialog opens
+    setSelectedCase('');
+    setExpenseType('Parking');
+    setAmount('');
+    setDescription('');
   }, [isOpen]);
 
   const handleLogExpense = async () => {
@@ -115,7 +122,10 @@ export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSu
             <label className="block text-sm text-zinc-400 mb-2">Case</label>
             <select value={selectedCase} onChange={e => setSelectedCase(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4">
               <option value="">Select a case...</option>
-              {cases.map(c => <option key={c.id} value={c.id}>{c.case_number} - {c.title}</option>)}
+              {cases.map(c => {
+                const name = c.respondent_name || 'Unknown';
+                return <option key={c.id} value={c.id}>{name} — {c.case_number}</option>;
+              })}
             </select>
           </div>
 
@@ -128,7 +138,7 @@ export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSu
 
           <div>
             <label className="block text-sm text-zinc-400 mb-2">Amount</label>
-            <input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-6 text-5xl text-center" placeholder="0.00" />
+            <input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 text-xl text-center" placeholder="0.00" />
           </div>
 
           <div>

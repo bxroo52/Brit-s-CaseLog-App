@@ -22,7 +22,7 @@ interface ExpenseDialogProps {
 }
 
 export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: ExpenseDialogProps) {
-  const { cases, addExpense, editExpense, getCaseById } = useAppStore();
+  const { cases, addExpense, editExpense, getCaseById, getOpenCases } = useAppStore();
 
   const [form, setForm] = useState<ExpenseFormData>({
     caseId: defaultCaseId || '',
@@ -32,9 +32,10 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
     amount: 0,
   });
 
-  const openCases = cases.filter((c) => c.status === 'Open');
+  const openCases = getOpenCases ? getOpenCases() : cases.filter((c) => c.status === 'Open');
 
   // Include the case for the current expense (supports editing closed cases)
+  // Ensures dropdown populates with open cases + the relevant case for edit.
   const selectorCases = (() => {
     let list = [...openCases];
     const currentId = existing?.caseId || form.caseId || defaultCaseId;
@@ -56,8 +57,16 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
         description: existing.description,
         amount: existing.amount,
       });
-    } else if (defaultCaseId) {
-      setForm((f) => ({ ...f, caseId: defaultCaseId }));
+    } else {
+      // For new log expense, always start with blank description (no default/pre-filled text)
+      // and correct case if provided. This ensures clean state even if dialog component persists.
+      setForm({
+        caseId: defaultCaseId || (openCases[0]?.id ?? ''),
+        date: format(new Date(), 'yyyy-MM-dd'),
+        expenseType: 'Parking',
+        description: '',
+        amount: 0,
+      });
     }
   }, [existing, defaultCaseId]);
 
@@ -102,7 +111,7 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
           <CaseSelector
             selectedCaseId={form.caseId}
             onChange={(caseId) => setForm({ ...form, caseId })}
-            cases={openCases}
+            cases={selectorCases}
           />
 
           <div className="flex gap-3">
@@ -143,7 +152,7 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
                   }
                 }}
                 placeholder="0.00"
-                className="pl-7"
+                className="pl-7 h-9 text-base"  // normal size (not gigantic/large like some log inputs)
               />
             </div>
           </div>
