@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useAppStore } from '@/stores/useAppStore';
 import { supabase } from '@/lib/supabase';
 import { showToast } from './Toast';
 
@@ -12,40 +13,25 @@ interface LogTimeModalProps {
 }
 
 export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSuccess }: LogTimeModalProps) {
-  const [cases, setCases] = useState<any[]>([]);
+  const { getOpenCases } = useAppStore();
   const [selectedCase, setSelectedCase] = useState('');
   const [selectedActivity, setSelectedActivity] = useState('Contact');
   const [hours, setHours] = useState('1');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!isOpen) return;
-
-    async function loadCases() {
-      if (!supabase) {
-        setCases([]);
-        return;
-      }
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data } = await supabase
-        .from('cases')
-        .select('id, case_number, title')
-        .eq('user_id', user.id)
-        .eq('status', 'Open')
-        .order('created_at', { ascending: false });
-      setCases(data || []);
-    }
-    loadCases();
-  }, [isOpen]);
+  // Use the exact same data source as the Dashboard’s Open Cases section (Zustand store / Dexie)
+  // which correctly populates respondent names and case numbers from the main app data.
+  const cases = getOpenCases ? getOpenCases() : [];
 
   const handleLogTime = async () => {
     if (!selectedCase) {
       showToast('Please select a case', 'error');
       return;
     }
+
+    // Note: cases list now comes from store (same as Dashboard Open Cases), so dropdown will populate
+    // with respondent names + case numbers.
 
     if (!supabase) {
       showToast('Supabase not configured', 'error');
@@ -123,7 +109,11 @@ export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSucce
             <label className="block text-sm text-zinc-400 mb-2">Case</label>
             <select value={selectedCase} onChange={e => setSelectedCase(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 text-lg">
               <option value="">Select a case...</option>
-              {cases.map(c => <option key={c.id} value={c.id}>{c.case_number} - {c.title}</option>)}
+              {cases.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.respondentLastName}, {c.respondentFirstName} — {c.caseNumber}
+                </option>
+              ))}
             </select>
           </div>
 

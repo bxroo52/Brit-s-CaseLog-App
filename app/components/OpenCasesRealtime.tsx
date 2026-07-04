@@ -55,12 +55,15 @@ export default function OpenCasesRealtime() {
     <div>
       <h2 className="text-xl font-bold mb-4">Open Cases (Live)</h2>
       {cases.length === 0 && <p className="text-zinc-400">No open cases.</p>}
-      {cases.map(c => (
-        <div key={c.id} className="bg-zinc-800 rounded-xl p-4 mb-3">
-          <div className="font-medium">{c.case_number} — {c.title}</div>
-          <div className="text-sm text-zinc-400">{c.status}</div>
-        </div>
-      ))}
+      {cases.map(c => {
+        const name = c.respondent_name || (c.respondentLastName ? `${c.respondentLastName}, ${c.respondentFirstName || ''}` : '');
+        return (
+          <div key={c.id} className="bg-zinc-800 rounded-xl p-4 mb-3">
+            <div className="font-medium">{name} — {c.case_number || c.caseNumber}</div>
+            <div className="text-sm text-zinc-400">{c.status}</div>
+          </div>
+        );
+      })}
     </div>
   );
 }
