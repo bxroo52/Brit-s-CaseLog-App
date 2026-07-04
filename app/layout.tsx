@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import ToastContainer from "@/app/components/Toast";
 import { Toaster } from "@/components/ui/sonner";
 import { PWARegister } from "@/components/PWARegister";
 import { OfflineBanner } from "@/components/OfflineBanner";
@@ -62,6 +63,7 @@ export default function RootLayout({
           {children}
         </ErrorBoundary>
         <Toaster position="top-center" richColors closeButton theme="dark" />
+        <ToastContainer />
         <PWARegister />
 
           {/* ARIA Live Regions for screen reader announcements (visually hidden) */}

@@ -1,6 +1,6 @@
 import { db, SyncQueueItem } from './db';
 import { supabase } from './supabase';
-import { toast } from 'sonner';
+import { toast } from '@/app/components/Toast';
 import { announce } from './utils';
 
 // Normalize camelCase (TS/Dexie) <-> snake_case (Supabase) for sync

@@ -1,0 +1,66 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+
+export default function OpenCasesRealtime() {
+  const [cases, setCases] = useState<any[]>([]);
+
+  // Load initial data
+  useEffect(() => {
+    async function load() {
+      if (!supabase) {
+        setCases([]);
+        return;
+      }
+      const { data } = await supabase
+        .from('cases')
+        .select('*')
+        .eq('status', 'Open')
+        .order('created_at', { ascending: false });
+      setCases(data || []);
+    }
+    load();
+  }, []);
+
+  // Realtime subscription
+  useEffect(() => {
+    if (!supabase) return;
+    const channel = supabase
+      .channel('cases_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'cases' },
+        (payload) => {
+          if (payload.eventType === 'INSERT' && payload.new.status === 'Open') {
+            setCases(prev => [payload.new, ...prev]);
+          }
+          if (payload.eventType === 'UPDATE') {
+            setCases(prev =>
+              prev.map(c => (c.id === payload.new.id ? { ...c, ...payload.new } : c))
+                .filter(c => c.status === 'Open')
+            );
+          }
+          if (payload.eventType === 'DELETE') {
+            setCases(prev => prev.filter(c => c.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => { supabase!.removeChannel(channel); };
+  }, []);
+
+  return (
+    <div>
+      <h2 className="text-xl font-bold mb-4">Open Cases (Live)</h2>
+      {cases.length === 0 && <p className="text-zinc-400">No open cases.</p>}
+      {cases.map(c => (
+        <div key={c.id} className="bg-zinc-800 rounded-xl p-4 mb-3">
+          <div className="font-medium">{c.case_number} — {c.title}</div>
+          <div className="text-sm text-zinc-400">{c.status}</div>
+        </div>
+      ))}
+    </div>
+  );
+}

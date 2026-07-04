@@ -11,7 +11,7 @@ import CaseSelector from '@/components/CaseSelector';
 import { EXPENSE_TYPES } from '@/lib/constants';
 import { ExpenseFormData, Case } from '@/types';
 import { useAppStore } from '@/stores/useAppStore';
-import { toast } from 'sonner';
+import { toast } from '@/app/components/Toast';
 import { format } from 'date-fns';
 
 interface ExpenseDialogProps {

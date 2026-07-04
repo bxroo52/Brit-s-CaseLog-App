@@ -1,53 +1,113 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAppStore } from '@/stores/useAppStore';
+import { supabase } from '@/lib/supabase';
+import { showToast } from './Toast';
 
-export default function LogTimeModal({ isOpen, onClose, defaultCaseId }: { isOpen: boolean; onClose: () => void; defaultCaseId?: string }) {
+interface LogTimeModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onOptimisticAdd?: (tempEntry: any) => void;
+  onSuccess?: () => void;
+}
+
+export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSuccess }: LogTimeModalProps) {
+  const [cases, setCases] = useState<any[]>([]);
   const [selectedCase, setSelectedCase] = useState('');
   const [selectedActivity, setSelectedActivity] = useState('Contact');
   const [hours, setHours] = useState('1');
   const [description, setDescription] = useState('');
-
-  const { cases: allCases, addTimeEntry } = useAppStore();
-  const openCases = allCases.filter((c: any) => c.status === 'Open');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (isOpen && defaultCaseId) {
-      setSelectedCase(defaultCaseId);
-    }
-  }, [isOpen, defaultCaseId]);
+    if (!isOpen) return;
 
-  const handleLog = async () => {
+    async function loadCases() {
+      if (!supabase) {
+        setCases([]);
+        return;
+      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data } = await supabase
+        .from('cases')
+        .select('id, case_number, title')
+        .eq('user_id', user.id)
+        .eq('status', 'Open')
+        .order('created_at', { ascending: false });
+      setCases(data || []);
+    }
+    loadCases();
+  }, [isOpen]);
+
+  const handleLogTime = async () => {
     if (!selectedCase) {
-      alert('Please select a case');
-      return;
-    }
-    const h = parseFloat(hours);
-    if (isNaN(h) || h <= 0) {
-      alert('Please enter valid billable hours');
+      showToast('Please select a case', 'error');
       return;
     }
 
-    const today = new Date().toISOString().slice(0, 10);
+    if (!supabase) {
+      showToast('Supabase not configured', 'error');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+
+    // Create optimistic entry
+    const tempId = 'temp-' + Date.now();
+    const optimisticEntry = {
+      id: tempId,
+      case_id: selectedCase,
+      activity_type: selectedActivity,
+      hours: parseFloat(hours),
+      rate: 50,
+      description: description.trim(),
+      date: new Date().toISOString().split('T')[0],
+      cases: cases.find(c => c.id === selectedCase),
+      _optimistic: true, // flag for UI
+    };
+
+    // Optimistic UI update (instant)
+    if (onOptimisticAdd) {
+      onOptimisticAdd(optimisticEntry);
+    }
 
     try {
-      await addTimeEntry({
-        caseId: selectedCase,
-        date: today,
-        activityType: selectedActivity,
-        billableHours: h,
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not logged in');
+
+      const { data: rateData } = await supabase.from('hourly_rates').select('rate').eq('user_id', user.id).single();
+      const rate = rateData?.rate || 50;
+
+      const { error } = await supabase.from('time_entries').insert({
+        user_id: user.id,
+        case_id: selectedCase,
+        activity_type: selectedActivity,
+        hours: parseFloat(hours),
+        rate: rate,
         description: description.trim(),
+        date: new Date().toISOString().split('T')[0],
       });
-      alert('Time logged!');
+
+      if (error) throw error;
+
+      showToast('Time logged successfully!');
       onClose();
-      // reset for next time
+      if (onSuccess) onSuccess();
+
+      // Reset form
       setSelectedCase('');
+      setSelectedActivity('Contact');
       setHours('1');
       setDescription('');
-    } catch (e) {
-      console.error(e);
-      alert('Failed to log time');
+
+    } catch (err: any) {
+      showToast('Failed to log time: ' + err.message, 'error');
+      // Note: For full rollback you would need to remove the optimistic entry from parent state
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -55,64 +115,38 @@ export default function LogTimeModal({ isOpen, onClose, defaultCaseId }: { isOpe
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-end z-50">
-      <div className="bg-zinc-950 w-full rounded-t-3xl p-6 text-white max-h-[90vh] overflow-auto">
+      <div className="bg-zinc-950 w-full rounded-t-3xl p-6 text-white">
         <h2 className="text-2xl font-bold mb-6">Log Time</h2>
 
         <div className="space-y-6">
           <div>
             <label className="block text-sm text-zinc-400 mb-2">Case</label>
-            <select 
-              value={selectedCase} 
-              onChange={(e) => setSelectedCase(e.target.value)}
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 text-lg"
-            >
+            <select value={selectedCase} onChange={e => setSelectedCase(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 text-lg">
               <option value="">Select a case...</option>
-              {openCases.map((c: any) => (
-                <option key={c.id} value={c.id}>
-                  {c.respondentLastName}, {c.respondentFirstName} — {c.caseNumber}
-                </option>
-              ))}
+              {cases.map(c => <option key={c.id} value={c.id}>{c.case_number} - {c.title}</option>)}
             </select>
           </div>
 
           <div>
             <label className="block text-sm text-zinc-400 mb-2">Activity</label>
-            <select 
-              value={selectedActivity} 
-              onChange={(e) => setSelectedActivity(e.target.value)}
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 text-lg"
-            >
-              {['Contact','Court','Research','Report Writing','Drive Time','Wait Time','Other'].map(a => (
-                <option key={a} value={a}>{a}</option>
-              ))}
+            <select value={selectedActivity} onChange={e => setSelectedActivity(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 text-lg">
+              {['Contact','Court','Research','Report Writing','Drive Time','Wait Time','Other'].map(a => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
 
           <div>
             <label className="block text-sm text-zinc-400 mb-2">Billable Hours</label>
-            <input
-              type="number"
-              step="0.25"
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-6 text-5xl text-center"
-            />
+            <input type="number" step="0.25" value={hours} onChange={e => setHours(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-6 text-5xl text-center" />
           </div>
 
           <div>
             <label className="block text-sm text-zinc-400 mb-2">Description / Notes</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Add a note about this time entry…"
-              rows={3}
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 text-sm"
-            />
+            <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="What was done?" className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 h-24" />
           </div>
         </div>
 
-        <button onClick={handleLog} className="w-full bg-white text-black py-5 rounded-3xl text-xl font-medium mt-10">
-          Log Time
+        <button onClick={handleLogTime} disabled={loading || !selectedCase} className="w-full bg-white text-black py-5 rounded-3xl text-xl font-medium mt-10 disabled:opacity-50">
+          {loading ? 'Logging...' : 'Log Time'}
         </button>
       </div>
     </div>

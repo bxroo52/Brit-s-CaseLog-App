@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/app/components/Toast';
 import { announce } from '@/lib/utils';
 
 interface ErrorBoundaryProps {

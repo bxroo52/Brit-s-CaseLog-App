@@ -8,13 +8,17 @@ import { AppHeader, BottomTabBar } from '@/components/AppHeader';
 import NewCaseForm from '@/components/NewCaseForm';
 import OpenCasesSection from '@/components/OpenCasesSection';
 import ProfileModal from '@/app/components/ProfileModal';
-import ProfileOverview from '@/components/ProfileOverview';
 import LogTimeModal from '@/app/components/LogTimeModal';
 import NewCaseModal from '@/app/components/NewCaseModal';
 import ActivityRatesModal from '@/app/components/ActivityRatesModal';
+import TimeEntriesRealtime from '@/app/components/TimeEntriesRealtime';
+import OpenCasesRealtime from '@/app/components/OpenCasesRealtime';
+import DashboardStatsRealtime from '@/app/components/DashboardStatsRealtime';
 import { generateBillingSpreadsheet } from '@/lib/generateBillingSpreadsheet';
 import { TimeLogDialog } from '@/components/TimeLogDialog';
 import { ExpenseDialog } from '@/components/ExpenseDialog';
+import LogExpenseModal from '@/app/components/LogExpenseModal';
+import ExpensesRealtime from '@/app/components/ExpensesRealtime';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -52,7 +56,7 @@ import {
   FileText,
   Loader2,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/app/components/Toast';
 import { format, parseISO } from 'date-fns';
 import { getRecentMonths, formatMonth, formatCurrency, formatHours, formatDate } from '@/lib/format';
 import { generateCaseInvoicePDF, generateFullBillingPackagePDF } from '@/lib/generateInvoice';
@@ -359,7 +363,6 @@ export default function CaseLogApp() {
     hourlyRateMax,
     billingSummary,
     loadAllData,
-    loadProfile,
     setSelectedMonth,
     loadBillingSummary,
     generateBilling,
@@ -599,6 +602,7 @@ export default function CaseLogApp() {
   const [editingTime, setEditingTime] = useState<any>(null);
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
   const [defaultExpenseCaseId, setDefaultExpenseCaseId] = useState<string | undefined>();
+  const [logExpenseOpen, setLogExpenseOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<any>(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
@@ -608,9 +612,11 @@ export default function CaseLogApp() {
       announce('Loading from your device…', false);
     }
   }, [isLoading]);
-  const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [logTimeOpen, setLogTimeOpen] = useState(false);
   const [logTimeCaseId, setLogTimeCaseId] = useState<string | undefined>();
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [optimisticEntries, setOptimisticEntries] = useState<any[]>([]);
+  const [optimisticExpenses, setOptimisticExpenses] = useState<any[]>([]);
   const [newCaseModalOpen, setNewCaseModalOpen] = useState(false);
 
   const [billingMonth, setBillingMonth] = useState(selectedMonth);
@@ -665,9 +671,8 @@ export default function CaseLogApp() {
   };
 
   const quickLogExpense = (caseId?: string) => {
-    setDefaultExpenseCaseId(caseId);
-    setEditingExpense(null);
-    setExpenseDialogOpen(true);
+    setLogExpenseOpen(true);
+    // Note: defaultCaseId not passed to LogExpenseModal yet; it loads all open cases for the user
   };
 
   const openEditCase = (c: Case) => {
@@ -776,9 +781,7 @@ export default function CaseLogApp() {
       doc.save(fileName);
 
       const successMsg = `Billing package generated and downloaded. ${freshSummary.cases.length} case(s) • ${formatCurrency(freshSummary.grandTotal)}`;
-      toast.success(successMsg, {
-        description: `${freshSummary.cases.length} case(s) • ${formatCurrency(freshSummary.grandTotal)}`,
-      });
+      toast(successMsg, 'success');
       announce('Billing package generated and downloaded successfully.', true);
 
       // Refresh
@@ -859,22 +862,14 @@ export default function CaseLogApp() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="stat-card">
-          <div className="text-sm text-muted-foreground">Open Cases</div>
-          <div className="text-4xl font-semibold tabular-nums mt-1">{openCases.length}</div>
-        </div>
-        <div className="stat-card">
-          <div className="text-sm text-muted-foreground">This Month Logged</div>
-          <div className="text-4xl font-semibold tabular-nums mt-1">{formatCurrency(totalPendingAmount + totalExpensesAll)}</div>
-          <div className="text-xs mt-1 text-muted-foreground">All time + expenses</div>
-        </div>
-        <div className="stat-card bg-amber-50 border-amber-200">
-          <div className="text-sm font-medium text-amber-900">Reminder</div>
-          <div className="mt-2 text-sm text-amber-800">Future You called. They’d like you to log your hours.</div>
-          <Button variant="secondary" size="sm" className="mt-3" onClick={() => setActiveView('time')}>Go log your shit →</Button>
-        </div>
+      {/* Stats - Realtime */}
+      <DashboardStatsRealtime />
+
+      {/* Reminder */}
+      <div className="stat-card bg-amber-50 border-amber-200">
+        <div className="text-sm font-medium text-amber-900">Reminder</div>
+        <div className="mt-2 text-sm text-amber-800">Future You called. They’d like you to log your hours.</div>
+        <Button variant="secondary" size="sm" className="mt-3" onClick={() => setActiveView('time')}>Go log your shit →</Button>
       </div>
 
       {/* Open Cases section */}
@@ -948,6 +943,9 @@ export default function CaseLogApp() {
           </Button>
         </div>
       </div>
+
+      {/* Realtime Open Cases */}
+      <OpenCasesRealtime />
 
       {/* Filters */}
       <div className="mb-3">
@@ -1165,6 +1163,12 @@ export default function CaseLogApp() {
         <div><h2 className="section-title">Time Entries</h2><p className="text-sm text-muted-foreground">All time ever logged. Edit or delete with care.</p></div>
         <Button onClick={() => quickLogTime()}><Plus className="mr-2 h-4 w-4" /> New Time Entry</Button>
       </div>
+
+      <TimeEntriesRealtime 
+        optimisticEntries={optimisticEntries} 
+        onClearOptimistic={() => setOptimisticEntries([])} 
+      />
+
       <div className="rounded-xl border overflow-x-auto">
         <Table>
           <TableHeader>
@@ -1213,6 +1217,12 @@ export default function CaseLogApp() {
         <div><h2 className="section-title">Expenses</h2></div>
         <Button onClick={() => quickLogExpense()}><Plus className="mr-2 h-4 w-4" /> Log Expense</Button>
       </div>
+
+      <ExpensesRealtime 
+        optimisticEntries={optimisticExpenses}
+        onClearOptimistic={() => setOptimisticExpenses([])}
+      />
+
       <div className="rounded-xl border overflow-x-auto">
         <Table>
           <TableHeader>
@@ -1469,12 +1479,11 @@ export default function CaseLogApp() {
 
     return (
       <div className="max-w-md mx-auto px-4 py-6 space-y-6 text-sm overflow-y-auto">
-        <ProfileOverview onEdit={() => setProfileModalOpen(true)} />
-
         {/* SETTINGS */}
         <div>
           <div className="px-4 pb-2 text-xs font-semibold text-muted-foreground tracking-wider">SETTINGS</div>
           <div className="bg-card border rounded-xl overflow-hidden">
+            {renderItem('Profile')}
             {renderItem('Activity Rates')}
             {renderItem('Siri Shortcuts')}
             {renderItem('Integrations')}
@@ -1594,23 +1603,33 @@ export default function CaseLogApp() {
         existing={editingExpense}
       />
 
-      <ProfileModal
-        isOpen={profileModalOpen}
-        onClose={() => setProfileModalOpen(false)}
-      />
-
       <LogTimeModal
         isOpen={logTimeOpen}
-        defaultCaseId={logTimeCaseId}
         onClose={() => {
           setLogTimeOpen(false);
           setLogTimeCaseId(undefined);
+        }}
+        onOptimisticAdd={(tempEntry) => setOptimisticEntries(prev => [tempEntry, ...prev])}
+        onSuccess={() => {
+          setOptimisticEntries([]);
         }}
       />
 
       <NewCaseModal
         isOpen={newCaseModalOpen}
         onClose={() => setNewCaseModalOpen(false)}
+      />
+
+      <ProfileModal
+        isOpen={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+      />
+
+      <LogExpenseModal
+        isOpen={logExpenseOpen}
+        onClose={() => setLogExpenseOpen(false)}
+        onOptimisticAdd={(temp) => setOptimisticExpenses(prev => [temp, ...prev])}
+        onSuccess={() => setOptimisticExpenses([])}
       />
 
       {/* Account modal / info screens */}

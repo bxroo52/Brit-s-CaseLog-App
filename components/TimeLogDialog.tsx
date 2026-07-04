@@ -13,7 +13,7 @@ import { ACTIVITY_TYPES } from '@/lib/constants';
 import { TimeEntryFormData, Case } from '@/types';
 import { useAppStore } from '@/stores/useAppStore';
 import { formatCurrency } from '@/lib/format';
-import { toast } from 'sonner';
+import { toast } from '@/app/components/Toast';
 import { Play, Square } from 'lucide-react';
 import { format } from 'date-fns';
 

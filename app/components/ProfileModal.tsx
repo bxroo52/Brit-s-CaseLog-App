@@ -3,7 +3,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 
-export default function ProfileModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export default function ProfileModal({ isOpen, onClose, onProfileUpdated }: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  onProfileUpdated?: () => void;
+}) {
   const [profile, setProfile] = useState({ name: '', email: '', phone: '' });
   const [loading, setLoading] = useState(false);
 
@@ -51,8 +55,7 @@ export default function ProfileModal({ isOpen, onClose }: { isOpen: boolean; onC
     }
     setLoading(false);
     onClose();
-    // Force refresh the main page
-    window.location.reload();
+    if (onProfileUpdated) onProfileUpdated();
   };
 
   if (!isOpen) return null;
