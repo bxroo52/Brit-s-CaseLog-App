@@ -93,6 +93,7 @@ interface AppState {
     elapsedAtStop: number | null; // seconds when stopped (for recovery/display)
     caseId: string | null;
     activityType: string | null;
+    lastActivityTimestamp: number | null; // for idle detection
   };
 
   // Actions - Cases
@@ -114,6 +115,8 @@ interface AppState {
   getElapsedSeconds: () => number;
   getBilledHours: () => number; // rounded up to 0.1
   getActiveTimer: () => AppState['activeTimer'];
+  updateTimerActivity: () => void;
+  adjustTimerElapsed: (deltaSec: number) => void;
   getTimeForCase: (caseId: string) => TimeEntry[];
   getPendingForMonth: (month: string) => Promise<TimeEntry[]>;
 
@@ -226,6 +229,7 @@ export const useAppStore = create<AppState>()(
         elapsedAtStop: null,
         caseId: null,
         activityType: null,
+        lastActivityTimestamp: null,
       },
 
       // ---- Load ----
@@ -546,6 +550,7 @@ export const useAppStore = create<AppState>()(
             elapsedAtStop: null,
             caseId,
             activityType,
+            lastActivityTimestamp: now,
           },
         }));
       },
@@ -574,6 +579,7 @@ export const useAppStore = create<AppState>()(
             elapsedAtStop: null,
             caseId: null,
             activityType: null,
+            lastActivityTimestamp: null,
           },
         }));
       },
@@ -596,6 +602,33 @@ export const useAppStore = create<AppState>()(
       },
 
       getActiveTimer: () => get().activeTimer,
+
+      updateTimerActivity: () => {
+        const now = Date.now();
+        const timer = get().activeTimer;
+        if (timer.isRunning) {
+          set((state) => ({
+            activeTimer: {
+              ...state.activeTimer,
+              lastActivityTimestamp: now,
+            },
+          }));
+        }
+      },
+
+      adjustTimerElapsed: (deltaSec: number) => {
+        const timer = get().activeTimer;
+        if (!timer.isRunning) {
+          const current = timer.elapsedAtStop || 0;
+          const newElapsed = Math.max(0, current + deltaSec);
+          set((state) => ({
+            activeTimer: {
+              ...state.activeTimer,
+              elapsedAtStop: newElapsed,
+            },
+          }));
+        }
+      },
 
       // ---- Expenses ----
       addExpense: async (data) => {

@@ -390,6 +390,12 @@ export default function CaseLogApp() {
     addCase,
     addTimeEntry,
     editCase,
+    getActiveTimer,
+    startTimer: storeStartTimer,
+    stopTimer: storeStopTimer,
+    resetTimer: storeResetTimer,
+    updateTimerActivity,
+    adjustTimerElapsed,
     pendingChangesCount,
     clearLocalData,
     debugInspectDB,
@@ -676,6 +682,40 @@ export default function CaseLogApp() {
     (async () => {
       await initializeAppData();
     })();
+  }, []);
+
+  // Global activity tracking + idle detection for running timer
+  useEffect(() => {
+    const handleActivity = () => {
+      const timer = getActiveTimer ? getActiveTimer() : null;
+      if (timer && timer.isRunning) {
+        updateTimerActivity && updateTimerActivity();
+      }
+    };
+    const events = ['mousemove', 'keydown', 'click', 'touchstart'];
+    events.forEach((e) => window.addEventListener(e, handleActivity, { passive: true }));
+
+    const idleCheck = setInterval(() => {
+      const timer = getActiveTimer ? getActiveTimer() : null;
+      if (timer && timer.isRunning && timer.lastActivityTimestamp) {
+        const idleMs = Date.now() - timer.lastActivityTimestamp;
+        if (idleMs > 10 * 60 * 1000) { // 10 minutes
+          const stop = confirm('Idle for 10+ minutes.\n\nOK: Stop timer now\nCancel: Remove idle time (update activity, keep running)');
+          if (stop) {
+            storeStopTimer && storeStopTimer();
+            alert('Timer stopped due to inactivity.');
+          } else {
+            updateTimerActivity && updateTimerActivity();
+            alert('Activity timestamp updated. Idle period not auto-removed from elapsed (stop to adjust).');
+          }
+        }
+      }
+    }, 30 * 1000);
+
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, handleActivity));
+      clearInterval(idleCheck);
+    };
   }, []);
 
   const openCases = getOpenCases();
@@ -1307,24 +1347,21 @@ export default function CaseLogApp() {
     const [calendarFrom, setCalendarFrom] = useState('');
     const [calendarTo, setCalendarTo] = useState('');
 
-    // Timer state: precise stopwatch in seconds
-    const [elapsedSeconds, setElapsedSeconds] = useState(0);
-    const [isRunning, setIsRunning] = useState(false);
-    const [timerStart, setTimerStart] = useState<Date | null>(null);
+    // Use store for timer (for pause fix, persistence, idle)
+    const activeTimer = useAppStore((state) => state.activeTimer);
+    const elapsedSeconds = useAppStore((state) => state.getElapsedSeconds());
+    const isRunning = !!activeTimer.isRunning;
+    const billedHours = useAppStore((state) => state.getBilledHours());
 
-    // Live update interval for stopwatch (accurate seconds)
+    // Tick to force re-render for live display
+    const [tick, setTick] = useState(0);
     useEffect(() => {
       let interval: NodeJS.Timeout | null = null;
-      if (isRunning && timerStart) {
-        interval = setInterval(() => {
-          const elapsed = Math.floor((Date.now() - timerStart.getTime()) / 1000);
-          setElapsedSeconds(elapsed);
-        }, 250);
+      if (isRunning) {
+        interval = setInterval(() => setTick(t => t + 1), 250);
       }
-      return () => {
-        if (interval) clearInterval(interval);
-      };
-    }, [isRunning, timerStart]);
+      return () => { if (interval) clearInterval(interval); };
+    }, [isRunning]);
 
     const formatStopwatch = (secs: number) => {
       const h = Math.floor(secs / 3600);
@@ -1336,44 +1373,42 @@ export default function CaseLogApp() {
       return `${m}:${s.toString().padStart(2, '0')}`;
     };
 
-    const billedHours = Math.ceil(elapsedSeconds / 3600 * 10) / 10;
-
     const startTimer = () => {
       if (!isRunning) {
-        // Resume: adjust start from current (frozen during pause) elapsed
-        const now = Date.now();
-        const adjustedStart = new Date(now - elapsedSeconds * 1000);
-        setTimerStart(adjustedStart);
-        setIsRunning(true);
+        if (!selectedCaseId || !activityType) {
+          toast.error('Select Case and Activity before starting timer.');
+          return;
+        }
+        storeStartTimer(selectedCaseId, activityType);
+        // local tick will update via effect
       }
     };
 
     const stopTimer = () => {
-      if (isRunning && timerStart) {
-        const exact = Math.floor((Date.now() - timerStart.getTime()) / 1000);
-        setElapsedSeconds(exact);
-        setIsRunning(false);
-      } else if (isRunning) {
-        setIsRunning(false);
+      if (isRunning) {
+        storeStopTimer();
       }
     };
 
     const resetTimer = () => {
-      setIsRunning(false);
-      setTimerStart(null);
-      setElapsedSeconds(0);
+      storeResetTimer();
     };
 
     const addQuickTime = (add: number) => {
-      if (isRunning) stopTimer();
-      const secs = Math.round(add * 3600);
-      setElapsedSeconds(prev => Math.max(0, prev + secs));
+      if (isRunning) storeStopTimer();
+      const deltaSec = Math.round(add * 3600);
+      if (adjustTimerElapsed) {
+        adjustTimerElapsed(deltaSec);
+      }
     };
 
     const setManualHours = (val: number) => {
-      if (isRunning) stopTimer();
+      if (isRunning) storeStopTimer();
       const secs = Math.round(val * 3600);
-      setElapsedSeconds(Math.max(0, secs));
+      if (adjustTimerElapsed) {
+        storeResetTimer();
+        adjustTimerElapsed(secs);
+      }
     };
 
     const handleLogTime = async () => {
@@ -1572,9 +1607,12 @@ export default function CaseLogApp() {
                 const diffH = (to.getTime() - from.getTime()) / 1000 / 60 / 60;
                 const rounded = Math.max(0, Math.round(diffH * 10) / 10);
                 const secs = Math.round(rounded * 3600);
-                setElapsedSeconds(secs);
+                if (adjustTimerElapsed) {
+                  storeResetTimer();
+                  adjustTimerElapsed(secs);
+                }
                 setDate(from.toISOString().split('T')[0]);
-                if (isRunning) stopTimer();
+                if (isRunning) storeStopTimer();
                 toast.info(`Set ${rounded}h from calendar times.`);
               } else {
                 toast.error('Please enter both from and to times.');

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,6 +54,7 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
   // Local UI state for stopwatch display (synced from store)
   const [displayElapsed, setDisplayElapsed] = useState('00:00:00');
   const [isTiming, setIsTiming] = useState(false); // reflects if THIS dialog's timer is active
+  const displayIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Allow manual override of estimated/calculated bill amount (for edit)
   const [billAmount, setBillAmount] = useState<string>('');
@@ -123,7 +124,6 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
 
   // Sync with global timer and update display every second if running
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
     const syncAndUpdate = () => {
       const timer = getActiveTimer();
       const elapsedSec = getElapsedSeconds();
@@ -145,11 +145,18 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
 
     const timer = getActiveTimer();
     if (timer.isRunning) {
-      interval = setInterval(syncAndUpdate, 1000);
+      if (displayIntervalRef.current) clearInterval(displayIntervalRef.current);
+      displayIntervalRef.current = setInterval(syncAndUpdate, 1000);
+    } else if (displayIntervalRef.current) {
+      clearInterval(displayIntervalRef.current);
+      displayIntervalRef.current = null;
     }
 
     return () => {
-      if (interval) clearInterval(interval);
+      if (displayIntervalRef.current) {
+        clearInterval(displayIntervalRef.current);
+        displayIntervalRef.current = null;
+      }
     };
   }, [form.caseId, form.activityType, open, isTiming]); // include isTiming to re-eval interval on pause/resume
 
@@ -179,6 +186,10 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
       const m = Math.floor((elapsedSec % 3600) / 60);
       const s = elapsedSec % 60;
       setDisplayElapsed(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
+      if (displayIntervalRef.current) {
+        clearInterval(displayIntervalRef.current);
+        displayIntervalRef.current = null;
+      }
       toast.success(`Timer stopped. ${rounded.toFixed(1)}h (rounded UP) ready to log.`);
     }
   };
