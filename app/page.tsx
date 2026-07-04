@@ -738,9 +738,6 @@ export default function CaseLogApp() {
   };
 
   const handleDeleteTime = async (t: TimeEntry) => {
-    if (t.billingStatus === 'Billed') {
-      if (!confirm('This entry is already marked Billed. Delete anyway?')) return;
-    }
     try {
       await removeTimeEntry(t.id);
       toast('Time entry deleted.');
@@ -787,7 +784,7 @@ export default function CaseLogApp() {
     try {
       await generateBilling(billingMonth);
 
-      // Rebuild fresh summary post-mark
+      // Rebuild fresh summary (entries remain Pending)
       const currentUserId = user?.id;
       const freshSummary = await buildMonthlyBillingSummary(billingMonth, currentUserId);
 
@@ -1489,7 +1486,7 @@ export default function CaseLogApp() {
             </Button>
           </div>
 
-          <p className="text-xs text-center sm:text-right text-muted-foreground mt-2">Generating the package marks all pending entries for the month as BILLED.</p>
+          <p className="text-xs text-center sm:text-right text-muted-foreground mt-2">Generating the package creates a PDF summary. Entries stay as Pending (no auto-marking as Billed).</p>
         </>
       )}
       </div>

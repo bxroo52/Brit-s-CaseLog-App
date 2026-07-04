@@ -107,10 +107,13 @@ export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSu
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-end z-50">
-      <div className="bg-zinc-950 w-full rounded-t-3xl p-6 text-white">
-        <h2 className="text-2xl font-bold mb-6">Log Expense</h2>
+      <div className="bg-zinc-950 w-full max-w-md mx-auto rounded-t-3xl flex flex-col overflow-hidden max-h-[85dvh]" style={{ maxHeight: 'min(85dvh, calc(100dvh - 20px))' }}>
+        <div className="px-6 pt-6 pb-2 flex justify-between items-center flex-shrink-0">
+          <h2 className="text-2xl font-bold">Log Expense</h2>
+          <button onClick={onClose} className="text-xl">✕</button>
+        </div>
 
-        <div className="space-y-6">
+        <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-6" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
           <div>
             <label className="block text-sm text-zinc-400 mb-2">Case</label>
             <select value={selectedCase} onChange={e => setSelectedCase(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4">
@@ -132,18 +135,18 @@ export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSu
 
           <div>
             <label className="block text-sm text-zinc-400 mb-2">Amount</label>
-            <input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 text-xl text-center" placeholder="0.00" />
+            <input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-3 text-base text-center" placeholder="0.00" inputMode="decimal" />
           </div>
 
           <div>
             <label className="block text-sm text-zinc-400 mb-2">Description / Receipt Note</label>
             <textarea value={description} onChange={e => setDescription(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 h-24" placeholder="Parking at courthouse garage. Receipt #4821" />
           </div>
-        </div>
 
-        <button onClick={handleLogExpense} disabled={loading || !selectedCase} className="w-full bg-white text-black py-5 rounded-3xl text-xl font-medium mt-8 disabled:opacity-50">
-          {loading ? 'Logging...' : 'Log Expense'}
-        </button>
+          <button onClick={handleLogExpense} disabled={loading || !selectedCase} className="w-full bg-white text-black py-5 rounded-3xl text-xl font-medium mt-8 disabled:opacity-50">
+            {loading ? 'Logging...' : 'Log Expense'}
+          </button>
+        </div>
       </div>
     </div>
   );

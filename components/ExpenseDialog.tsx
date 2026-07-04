@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import CaseSelector from '@/components/CaseSelector';
 import { EXPENSE_TYPES } from '@/lib/constants';
 import { ExpenseFormData, Case } from '@/types';
 import { useAppStore } from '@/stores/useAppStore';
@@ -120,11 +119,26 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-y-auto space-y-4">
-          <CaseSelector
-            selectedCaseId={form.caseId}
-            onChange={(caseId) => setForm({ ...form, caseId })}
-            cases={selectorCases}
-          />
+          {/* Direct Case select (like Log Time) using store data to ensure all open cases show */}
+          <div>
+            <Label>Case</Label>
+            <select
+              value={form.caseId}
+              onChange={(e) => setForm({ ...form, caseId: e.target.value })}
+              className="mt-1.5 w-full bg-background border border-input rounded-lg px-3 py-2 text-sm"
+              required
+            >
+              <option value="">Select a case...</option>
+              {selectorCases.map((c) => {
+                const displayName = `${c.respondentLastName || 'Unknown'}, ${c.respondentFirstName || ''}`.trim();
+                return (
+                  <option key={c.id} value={c.id}>
+                    {displayName} — {c.caseNumber}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
 
           <div className="flex gap-3">
             <div>

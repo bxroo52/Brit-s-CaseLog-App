@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppStore } from '@/stores/useAppStore';
 import { showToast } from './Toast';
 
@@ -22,6 +22,14 @@ export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSucce
   // Use the exact same data source as the Dashboard’s Open Cases section (Zustand store / Dexie)
   // which correctly populates respondent names and case numbers from the main app data.
   const cases = getOpenCases ? getOpenCases() : [];
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setSelectedCase('');
+    setSelectedActivity('Contact');
+    setHours('1');
+    setDescription('');
+  }, [isOpen]);
 
   const handleLogTime = async () => {
     const billableHoursNum = parseFloat(hours);
@@ -107,10 +115,13 @@ export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSucce
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-end z-50">
-      <div className="bg-zinc-950 w-full rounded-t-3xl p-6 text-white">
-        <h2 className="text-2xl font-bold mb-6">Log Time</h2>
+      <div className="bg-zinc-950 w-full max-w-md mx-auto rounded-t-3xl flex flex-col overflow-hidden max-h-[85dvh]" style={{ maxHeight: 'min(85dvh, calc(100dvh - 20px))' }}>
+        <div className="px-6 pt-6 pb-2 flex justify-between items-center flex-shrink-0">
+          <h2 className="text-2xl font-bold">Log Time</h2>
+          <button onClick={onClose} className="text-xl">✕</button>
+        </div>
 
-        <div className="space-y-6">
+        <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-6" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
           <div>
             <label className="block text-sm text-zinc-400 mb-2">Case</label>
             <select value={selectedCase} onChange={e => setSelectedCase(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 text-lg">
@@ -132,18 +143,18 @@ export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSucce
 
           <div>
             <label className="block text-sm text-zinc-400 mb-2">Billable Hours</label>
-            <input type="number" step="0.25" value={hours} onChange={e => setHours(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-6 text-5xl text-center" />
+            <input type="number" step="0.25" value={hours} onChange={e => setHours(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-3 text-xl text-center" inputMode="decimal" />
           </div>
 
           <div>
             <label className="block text-sm text-zinc-400 mb-2">Description / Notes</label>
             <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="What was done?" className="w-full bg-zinc-900 border border-zinc-700 rounded-2xl p-4 h-24" />
           </div>
-        </div>
 
-        <button onClick={handleLogTime} disabled={loading || !selectedCase} className="w-full bg-white text-black py-5 rounded-3xl text-xl font-medium mt-10 disabled:opacity-50">
-          {loading ? 'Logging...' : 'Log Time'}
-        </button>
+          <button onClick={handleLogTime} disabled={loading || !selectedCase} className="w-full bg-white text-black py-5 rounded-3xl text-xl font-medium mt-10 disabled:opacity-50">
+            {loading ? 'Logging...' : 'Log Time'}
+          </button>
+        </div>
       </div>
     </div>
   );

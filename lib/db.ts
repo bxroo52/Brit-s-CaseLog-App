@@ -257,15 +257,6 @@ export async function getAllTimeForMonth(billingMonth: string, userId?: string):
   return rows.filter(e => !e.isDeleted);
 }
 
-export async function markTimeEntriesAsBilled(billingMonth: string, userId?: string): Promise<number> {
-  const pending = await getPendingTimeEntriesForMonth(billingMonth, userId);
-  if (pending.length === 0) return 0;
-
-  const ids = pending.map((e) => e.id);
-  await db.timeEntries.where('id').anyOf(ids).modify({ billingStatus: 'Billed' });
-  return pending.length;
-}
-
 export async function deleteTimeEntry(id: string): Promise<void> {
   const now = new Date().toISOString();
   await db.timeEntries.where({ id }).modify({ isDeleted: true, updatedAt: now, synced: false });

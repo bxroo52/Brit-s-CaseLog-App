@@ -30,7 +30,6 @@ import {
   deleteTimeEntry,
   getAllTimeEntries,
   getPendingTimeEntriesForMonth,
-  markTimeEntriesAsBilled,
   createExpense,
   updateExpense,
   deleteExpense,
@@ -122,7 +121,7 @@ interface AppState {
   // Billing
   setSelectedMonth: (month: string) => void;
   loadBillingSummary: (month: string) => Promise<void>;
-  generateBilling: (month: string) => Promise<void>; // marks billed + prepares summary
+  generateBilling: (month: string) => Promise<void>; // prepares summary (no marking)
 
   // Filters / UI
   setSearchTerm: (term: string) => void;
@@ -575,16 +574,9 @@ export const useAppStore = create<AppState>()(
         set({ isGenerating: true });
         try {
           const currentUserId = get().user?.id;
-          // Build clean data
+          // Build summary ONLY (no auto-marking as Billed)
           const summary = await buildMonthlyBillingSummary(month, currentUserId);
-
-          // Mark pending time entries for the month as Billed
-          await markTimeEntriesAsBilled(month, currentUserId);
-
-          // Reload time entries so UI reflects Billed status
-          const freshTimes = await getAllTimeEntries(currentUserId);
           set({
-            timeEntries: freshTimes,
             billingSummary: summary,
             isGenerating: false,
           });
