@@ -642,6 +642,10 @@ export default function CaseLogApp() {
   // Dedicated Activity Rates dialog
   const [activityRatesOpen, setActivityRatesOpen] = useState(false);
 
+  // Case time entries modal (tappable case cards on Cases tab)
+  const [caseEntriesOpen, setCaseEntriesOpen] = useState(false);
+  const [selectedCaseForEntries, setSelectedCaseForEntries] = useState<Case | null>(null);
+
   // Expose debug for console (temp for IndexedDB exploration)
   if (typeof window !== 'undefined') {
     (window as any).__caseLogDebug = {
@@ -726,6 +730,12 @@ export default function CaseLogApp() {
 
   const openNewCase = () => {
     setNewCaseModalOpen(true);
+  };
+
+  const openCaseEntries = (caseId: string) => {
+    const c = getCaseById(caseId);
+    setSelectedCaseForEntries(c || null);
+    setCaseEntriesOpen(true);
   };
 
   const handleToggleStatus = async (c: Case) => {
@@ -1003,6 +1013,7 @@ export default function CaseLogApp() {
       <OpenCasesRealtime 
         onNewCase={openNewCase} 
         onExport={() => generateBillingSpreadsheet(filteredCases)} 
+        onCaseClick={openCaseEntries}
       />
 
       {/* Filters */}
@@ -1118,7 +1129,11 @@ export default function CaseLogApp() {
           <div className="text-center py-8 text-muted-foreground border rounded-xl">No cases match. Maybe create one?</div>
         )}
         {filteredCases.map((c) => (
-          <div key={c.id} className="border rounded-xl p-3 bg-card">
+          <div 
+            key={c.id} 
+            className="border rounded-xl p-3 bg-card cursor-pointer active:bg-muted/50"
+            onClick={() => openCaseEntries(c.id)}
+          >
             <div className="flex justify-between items-start gap-2">
               <div>
                 <div className="font-medium">{`${c.respondentFirstName} ${c.respondentLastName}`}</div>
@@ -1127,7 +1142,7 @@ export default function CaseLogApp() {
               </div>
               <div>
                 <button
-                  onClick={() => handleToggleStatus(c)}
+                  onClick={(e) => { e.stopPropagation(); handleToggleStatus(c); }}
                   className="focus:outline-none"
                 >
                   <Badge
@@ -1145,10 +1160,10 @@ export default function CaseLogApp() {
             <div className="mt-1 text-xs font-mono text-right">{formatCurrency(c.hourlyRate ?? 0)}</div>
 
             <div className="mt-2 flex gap-1 flex-wrap">
-              <Button size="sm" variant="ghost" onClick={() => quickLogTime(c.id)} className="h-8 px-2 text-xs">+ Time</Button>
-              <Button size="sm" variant="ghost" onClick={() => quickLogExpense(c.id)} className="h-8 px-2 text-xs">+ Exp</Button>
-              <Button size="sm" variant="ghost" onClick={() => openEditCase(c)} className="h-8 px-1.5"><Edit2 className="h-3.5 w-3.5" /></Button>
-              <Button size="sm" variant="ghost" className="text-destructive h-8 px-1.5" onClick={() => handleDeleteCase(c)}><Trash2 className="h-3.5 w-3.5" /></Button>
+              <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); quickLogTime(c.id); }} className="h-8 px-2 text-xs">+ Time</Button>
+              <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); quickLogExpense(c.id); }} className="h-8 px-2 text-xs">+ Exp</Button>
+              <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openEditCase(c); }} className="h-8 px-1.5"><Edit2 className="h-3.5 w-3.5" /></Button>
+              <Button size="sm" variant="ghost" className="text-destructive h-8 px-1.5" onClick={(e) => { e.stopPropagation(); handleDeleteCase(c); }}><Trash2 className="h-3.5 w-3.5" /></Button>
             </div>
           </div>
         ))}
@@ -1175,14 +1190,14 @@ export default function CaseLogApp() {
               const caseTime = getTimeForCase(c.id);
               const pending = caseTime.filter((t) => t.billingStatus === 'Pending').length;
               return (
-                <TableRow key={c.id}>
+                <TableRow key={c.id} className="cursor-pointer" onClick={() => openCaseEntries(c.id)}>
                   <TableCell className="font-medium">{`${c.respondentFirstName} ${c.respondentLastName}`}</TableCell>
                   <TableCell className="font-mono text-sm">{c.caseNumber}</TableCell>
                   <TableCell>{c.assignmentType}</TableCell>
                   <TableCell className="text-right font-mono">{formatCurrency(c.hourlyRate ?? 0)}</TableCell>
                   <TableCell>
                     <button
-                      onClick={() => handleToggleStatus(c)}
+                      onClick={(e) => { e.stopPropagation(); handleToggleStatus(c); }}
                       className="focus:outline-none"
                     >
                       <Badge 
@@ -1198,10 +1213,10 @@ export default function CaseLogApp() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1.5">
-                      <Button size="sm" variant="ghost" onClick={() => quickLogTime(c.id)}>Log Time</Button>
-                      <Button size="sm" variant="ghost" onClick={() => quickLogExpense(c.id)}>Expense</Button>
-                      <Button size="sm" variant="ghost" onClick={() => openEditCase(c)}><Edit2 className="h-4 w-4" /></Button>
-                      <Button size="sm" variant="ghost" className="text-destructive" onClick={() => handleDeleteCase(c)}><Trash2 className="h-4 w-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); quickLogTime(c.id); }}>Log Time</Button>
+                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); quickLogExpense(c.id); }}>Expense</Button>
+                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openEditCase(c); }}><Edit2 className="h-4 w-4" /></Button>
+                      <Button size="sm" variant="ghost" className="text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteCase(c); }}><Trash2 className="h-4 w-4" /></Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -1724,6 +1739,77 @@ export default function CaseLogApp() {
         isOpen={activityRatesOpen}
         onClose={() => setActivityRatesOpen(false)}
       />
+
+      {/* Case Time Entries Modal (tappable cards on Cases tab) */}
+      <Dialog open={caseEntriesOpen} onOpenChange={setCaseEntriesOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[85dvh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedCaseForEntries 
+                ? `${selectedCaseForEntries.respondentFirstName} ${selectedCaseForEntries.respondentLastName}` 
+                : 'Case Time Entries'}
+            </DialogTitle>
+            {selectedCaseForEntries && (
+              <p className="text-sm text-muted-foreground font-mono">
+                {selectedCaseForEntries.caseNumber} • {selectedCaseForEntries.assignmentType}
+              </p>
+            )}
+          </DialogHeader>
+
+          <div className="flex-1 min-h-0 overflow-y-auto py-2 space-y-2 text-sm">
+            {(() => {
+              const entries = selectedCaseForEntries ? getTimeForCase(selectedCaseForEntries.id) : [];
+              if (!entries || entries.length === 0) {
+                return (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No time entries logged for this case yet.
+                  </div>
+                );
+              }
+              return entries.map((t: TimeEntry) => (
+                <div key={t.id} className="border rounded-lg p-3 bg-card">
+                  <div className="flex justify-between items-center text-xs text-muted-foreground">
+                    <span>{formatDate(t.date)}</span>
+                    <span className="font-mono tabular-nums">
+                      {formatHours(t.billableHoursRounded ?? t.billableHours)}h • {formatCurrency(t.totalAmount ?? t.amount)}
+                    </span>
+                  </div>
+                  <div className="mt-1 font-medium">{t.activityType}</div>
+                  {t.description && (
+                    <div className="mt-0.5 text-xs text-muted-foreground break-words">{t.description}</div>
+                  )}
+                </div>
+              ));
+            })()}
+          </div>
+
+          <DialogFooter className="gap-2">
+            {selectedCaseForEntries && (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setCaseEntriesOpen(false);
+                    quickLogTime(selectedCaseForEntries.id);
+                  }}
+                >
+                  + Time
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setCaseEntriesOpen(false);
+                    quickLogExpense(selectedCaseForEntries.id);
+                  }}
+                >
+                  + Exp
+                </Button>
+              </>
+            )}
+            <Button variant="outline" onClick={() => setCaseEntriesOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

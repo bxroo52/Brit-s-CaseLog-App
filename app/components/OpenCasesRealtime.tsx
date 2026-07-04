@@ -8,9 +8,10 @@ import { Plus } from 'lucide-react';
 interface OpenCasesRealtimeProps {
   onNewCase?: () => void;
   onExport?: () => void;
+  onCaseClick?: (caseId: string) => void;
 }
 
-export default function OpenCasesRealtime({ onNewCase, onExport }: OpenCasesRealtimeProps) {
+export default function OpenCasesRealtime({ onNewCase, onExport, onCaseClick }: OpenCasesRealtimeProps) {
   const [cases, setCases] = useState<any[]>([]);
 
   // Load initial data
@@ -77,7 +78,11 @@ export default function OpenCasesRealtime({ onNewCase, onExport }: OpenCasesReal
       {cases.map(c => {
         const name = c.respondent_name || (c.respondentLastName ? `${c.respondentLastName}, ${c.respondentFirstName || ''}` : '');
         return (
-          <div key={c.id} className="bg-zinc-800 rounded-xl p-4 mb-3">
+          <div 
+            key={c.id} 
+            className="bg-zinc-800 rounded-xl p-4 mb-3 cursor-pointer active:bg-zinc-700"
+            onClick={() => onCaseClick?.(c.id)}
+          >
             <div className="font-medium">{name} — {c.case_number || c.caseNumber}</div>
             <div className="text-sm text-zinc-400">{c.status}</div>
           </div>
