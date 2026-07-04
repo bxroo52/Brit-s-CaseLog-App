@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { showToast } from './Toast';
+import { formatDate } from '@/lib/format';
 
 interface ExpensesRealtimeProps {
   optimisticEntries?: any[];
@@ -60,19 +61,24 @@ export default function ExpensesRealtime({ optimisticEntries = [], onClearOptimi
 
       {allExpenses.map((expense, index) => {
         const isOptimistic = expense._optimistic;
+        const amount = (expense.amount || 0).toFixed(2);
         return (
-          <div key={expense.id || index} className={`flex justify-between py-4 border-b border-zinc-800 ${isOptimistic ? 'opacity-70' : ''}`}>
-            <div>
-              <div className="font-medium flex items-center gap-2">
-                {expense.cases?.case_number} {expense.cases?.title}
-                {isOptimistic && <span className="text-xs bg-yellow-600 px-2 py-0.5 rounded">Saving...</span>}
-              </div>
-              <div className="text-sm text-zinc-400">{expense.type}</div>
-              {expense.description && <div className="text-xs text-zinc-500 mt-1">{expense.description}</div>}
+          <div 
+            key={expense.id || index} 
+            className={`py-1 border-b border-zinc-800 text-[9px] leading-tight ${isOptimistic ? 'opacity-70' : ''}`}
+          >
+            <div className="flex justify-between text-[9px] text-zinc-500">
+              <span>{formatDate(expense.date, 'M/d')}</span>
+              <span className="font-semibold text-zinc-300">${amount}</span>
             </div>
-            <div className="text-right font-semibold">
-              ${expense.amount?.toFixed(2)}
+            <div className="font-medium truncate text-zinc-100">
+              {expense.cases?.case_number} {expense.cases?.title}
+              {isOptimistic && <span className="text-[7px] ml-1 bg-yellow-600 px-0.5 rounded">Saving</span>}
             </div>
+            <div className="text-zinc-400 truncate">
+              {expense.type}
+            </div>
+            {expense.description && <div className="text-zinc-500 truncate">{expense.description}</div>}
           </div>
         );
       })}

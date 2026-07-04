@@ -100,26 +100,26 @@ export default function TimeEntriesRealtime({ optimisticEntries = [], onClearOpt
           return (
             <div 
               key={entry.id || index} 
-              className={`py-2 border-b border-zinc-800 text-xs ${isOptimistic ? 'opacity-70' : ''}`}
+              className={`py-1 border-b border-zinc-800 text-[9px] leading-tight ${isOptimistic ? 'opacity-70' : ''}`}
             >
-              <div className="flex justify-between text-[10px] text-zinc-500">
+              <div className="flex justify-between text-[9px] text-zinc-500">
                 <span>{formatDate(entry.date, 'M/d')}</span>
                 <span className="font-semibold text-zinc-300">${amount}</span>
               </div>
-              <div className="font-medium truncate">
+              <div className="font-medium truncate text-zinc-100">
                 {entry.cases?.case_number} {entry.cases?.title}
-                {isOptimistic && <span className="text-[8px] ml-1 bg-yellow-600 px-1 rounded">Saving</span>}
+                {isOptimistic && <span className="text-[7px] ml-1 bg-yellow-600 px-0.5 rounded">Saving</span>}
               </div>
-              <div className="text-[10px] text-zinc-400 flex justify-between">
-                <span>{entry.activity_type} • {entry.hours} hrs</span>
-                {!isOptimistic && (
-                  <span className="flex gap-2">
-                    <button onClick={() => setEditingEntry(entry)} className="text-blue-400">Edit</button>
-                    <button onClick={() => handleDelete(entry.id, isOptimistic)} className="text-red-400">Del</button>
-                  </span>
-                )}
+              <div className="text-zinc-400 truncate">
+                {entry.activity_type} • {entry.hours} hrs
               </div>
-              {entry.description && <div className="text-[10px] text-zinc-500 truncate">{entry.description}</div>}
+              {entry.description && <div className="text-zinc-500 truncate">{entry.description}</div>}
+              {!isOptimistic && (
+                <div className="flex gap-2 mt-0.5 text-blue-400 text-[8px]">
+                  <button onClick={() => setEditingEntry(entry)} className="active:opacity-70">Edit</button>
+                  <button onClick={() => handleDelete(entry.id, isOptimistic)} className="text-red-400 active:opacity-70">Del</button>
+                </div>
+              )}
             </div>
           );
         })}
