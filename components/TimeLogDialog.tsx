@@ -171,10 +171,10 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
       toast.info('Timer started. Go do the thing.');
     } else {
       const elapsedSec = storeStopTimer();
-      const rounded = getBilledHours(); // uses round to nearest 0.1 from store
+      const rounded = getBilledHours(); // uses always round UP (Math.ceil) to nearest 0.1 from store
       setForm((f) => ({ ...f, billableHours: rounded }));
       setIsTiming(false);
-      toast.success(`Timer stopped. ${rounded.toFixed(1)}h ready to log.`);
+      toast.success(`Timer stopped. ${rounded.toFixed(1)}h (rounded UP) ready to log.`);
     }
   };
 
@@ -322,7 +322,7 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
                 <div className="text-4xl font-mono tabular-nums tracking-[2px] font-semibold">
                   {displayElapsed}
                 </div>
-                <div className="text-xs text-green-400 mt-1">RUNNING • will round to nearest 0.1h on stop</div>
+                <div className="text-xs text-green-400 mt-1">RUNNING • will round UP to nearest 0.1h on stop</div>
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -352,7 +352,7 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
 
             {!isTiming && form.billableHours > 0 && (
               <div className="text-[10px] text-muted-foreground mt-1">
-                Or use timer above for stopwatch (rounds to nearest 0.1h)
+                Or use timer above for stopwatch (rounds UP to nearest 0.1h)
               </div>
             )}
           </div>

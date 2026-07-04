@@ -583,9 +583,10 @@ export const useAppStore = create<AppState>()(
       getBilledHours: () => {
         const elapsedSec = get().getElapsedSeconds();
         const hours = elapsedSec / 3600;
-        // Round to nearest 0.1h (standard round-half-up, matches billing)
-        // Examples: 3720s(1h2m)->1.0 , 3840s(1h4m)->1.1 , 360s(6m)->0.1 , 120s->0.0
-        return Math.round(hours * 10) / 10;
+        // Always round UP to nearest 0.1h as specified: Math.ceil(hours * 10) / 10
+        // For partial time in 6-minute brackets.
+        // Examples: 0s->0.0, 120s(2m)->0.0, 180s(3m)->0.1, 360s(6m)->0.1, 3720s(1h2m)->1.0, 3780s(1h3m)->1.1, 3840s(1h4m)->1.1
+        return Math.ceil(hours * 10) / 10;
       },
 
       getActiveTimer: () => get().activeTimer,
