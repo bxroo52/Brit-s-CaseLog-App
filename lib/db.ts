@@ -69,6 +69,9 @@ export function getBillingMonth(date: string): string {
 }
 
 export function roundToNearestTenth(hours: number): number {
+  // Billing rounding: to nearest 0.1 hour using standard Math.round (half up).
+  // Examples: 1.23h -> 1.2h, 1.25h -> 1.3h, 1.24h -> 1.2h
+  // Consistent across timer, manual entry, and store saves.
   return Math.round(hours * 10) / 10;
 }
 

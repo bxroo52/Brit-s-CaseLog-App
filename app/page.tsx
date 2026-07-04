@@ -1338,6 +1338,11 @@ export default function CaseLogApp() {
 
     const billedHours = roundToNearestTenth(elapsedSeconds / 3600);
 
+    const recentEntries = (timeEntries || [])
+      .filter((t: any) => !selectedCaseId || t.caseId === selectedCaseId)
+      .sort((a: any, b: any) => b.date.localeCompare(a.date))
+      .slice(0, 5);
+
     const startTimer = () => {
       if (!isRunning) {
         // Resume support: compute start from current elapsed if resuming
@@ -1426,34 +1431,54 @@ export default function CaseLogApp() {
         <div className="text-center p-6 bg-zinc-900 rounded-3xl">
           <div className="text-sm text-muted-foreground mb-1">Stopwatch</div>
           <div className="text-6xl font-light tabular-nums tracking-tighter font-mono">{formatStopwatch(elapsedSeconds)}</div>
-          <div className="text-sm text-muted-foreground mt-1">Billed: {billedHours.toFixed(1)} h (rounded to 0.1)</div>
+          <div className="text-sm text-muted-foreground mt-1">
+            Billed: {billedHours.toFixed(1)} h 
+            <span className="text-[10px] text-muted-foreground/70">(nearest 0.1h, half up)</span>
+          </div>
           {isRunning && (
             <div className="mt-2 text-green-400 text-xs animate-pulse">● Running — counting seconds</div>
           )}
         </div>
 
-        {/* Timer Controls */}
+        {/* Timer Controls - Pause/Resume + Reset */}
         <div className="space-y-3">
-          {!isRunning ? (
+          {isRunning ? (
+            <Button
+              onClick={stopTimer}
+              className="w-full h-16 text-xl bg-yellow-600 hover:bg-yellow-700 text-white font-semibold rounded-2xl"
+            >
+              ⏸ Pause Timer
+            </Button>
+          ) : elapsedSeconds > 0 ? (
+            <Button
+              onClick={startTimer}
+              className="w-full h-16 text-xl bg-green-600 hover:bg-green-700 text-white font-semibold rounded-2xl"
+            >
+              ▶ Resume Timer
+            </Button>
+          ) : (
             <Button
               onClick={startTimer}
               className="w-full h-16 text-xl bg-green-600 hover:bg-green-700 text-white font-semibold rounded-2xl"
             >
               ▶ Start Timer
             </Button>
-          ) : (
-            <Button
-              onClick={stopTimer}
-              className="w-full h-16 text-xl bg-red-600 hover:bg-red-700 text-white font-semibold rounded-2xl"
-            >
-              ■ Stop Timer
-            </Button>
           )}
 
           <div className="flex gap-2">
-            <Button variant="outline" onClick={resetTimer} className="flex-1">Reset</Button>
+            <Button 
+              variant="outline" 
+              onClick={resetTimer} 
+              disabled={elapsedSeconds === 0 && !isRunning}
+              className="flex-1"
+            >
+              ⟲ Reset
+            </Button>
             <Button variant="outline" onClick={() => addQuickTime(-0.1)} className="flex-1">-0.1</Button>
             <Button variant="outline" onClick={() => addQuickTime(0.1)} className="flex-1">+0.1</Button>
+          </div>
+          <div className="text-[10px] text-center text-muted-foreground">
+            {isRunning ? 'Timer running (pause to edit)' : elapsedSeconds > 0 ? 'Paused — resume or adjust' : 'Ready to start'}
           </div>
         </div>
 
@@ -1572,6 +1597,50 @@ export default function CaseLogApp() {
           </Button>
         </div>
 
+        {/* Recent Time Entry History (explore/edit from Timer tab) */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-muted-foreground">
+              Recent Entries {selectedCaseId ? ' (this case)' : ''}
+            </h3>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-xs h-6 px-2"
+              onClick={() => setActiveView('time')}
+            >
+              View all →
+            </Button>
+          </div>
+          {recentEntries.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-2">No past entries yet for this selection.</p>
+          ) : (
+            <div className="space-y-1 text-sm">
+              {recentEntries.map((t: any) => {
+                const c = getCaseById(t.caseId);
+                const name = c ? `${c.respondentLastName || ''}, ${c.respondentFirstName || ''}` : 'Unknown';
+                return (
+                  <div key={t.id} className="flex items-center justify-between bg-zinc-900/60 rounded-xl px-3 py-1.5">
+                    <div className="truncate pr-2">
+                      <span className="font-mono text-xs text-muted-foreground">{t.date}</span>
+                      {' '}{name} — {t.activityType} <span className="font-mono">{(t.billableHoursRounded ?? t.billableHours).toFixed(1)}h</span>
+                      {t.description && <span className="text-xs text-muted-foreground ml-1">· {t.description.slice(0,30)}</span>}
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-6 w-6" 
+                      onClick={() => editTimeEntry(t)}
+                    >
+                      <Edit2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         {/* Actions */}
         <div className="pt-2 space-y-3">
           <Button
@@ -1600,7 +1669,7 @@ export default function CaseLogApp() {
         </div>
 
         <div className="text-[10px] text-center text-muted-foreground">
-          Time will be rounded to nearest 0.1h and saved via the standard Log Time flow.
+          Billing uses nearest 0.1 hour rounding (standard half-up). See roundToNearestTenth in lib/db.ts.
         </div>
       </div>
     );
