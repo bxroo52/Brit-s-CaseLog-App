@@ -82,14 +82,16 @@ export async function createCase(
   data: Omit<Case, 'id' | 'createdAt' | 'updatedAt' | 'synced' | 'isDeleted'> & { userId?: string }
 ): Promise<Case> {
   const now = new Date().toISOString();
-  const newCase: Case = {
+  const respondentName = (data as any).respondentName || `${(data as any).respondentLastName || ''}, ${(data as any).respondentFirstName || ''}`.trim().replace(/^, |, $/, '');
+  const newCase = {
     ...data,
+    respondentName,
     id: crypto.randomUUID(),
     createdAt: now,
     updatedAt: now,
     synced: false,
     isDeleted: false,
-  };
+  } as Case;
   await db.cases.add(newCase);
   return newCase;
 }

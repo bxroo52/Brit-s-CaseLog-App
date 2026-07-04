@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAppStore } from '@/stores/useAppStore';
 
 export default function NewCaseModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const { addCase } = useAppStore();
   const [form, setForm] = useState({
     first_name: '',
     last_name: '',
@@ -44,16 +46,20 @@ export default function NewCaseModal({ isOpen, onClose }: { isOpen: boolean; onC
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return alert('Not logged in');
 
-    const { error } = await supabase.from('cases').insert({
-      ...form,
-      user_id: user.id,
-    });
-
-    if (error) {
-      alert('Error creating case: ' + error.message);
-    } else {
+    try {
+      await addCase({
+        respondentFirstName: form.first_name,
+        respondentLastName: form.last_name,
+        caseNumber: form.case_number,
+        assignmentType: form.assignment_type as any,
+        status: form.status as any,
+        firstTimeBilling: form.first_time_billing,
+        notes: form.notes,
+      });
       alert('Case created successfully!');
       onClose();
+    } catch (err: any) {
+      alert('Error creating case: ' + (err?.message || err));
     }
   };
 

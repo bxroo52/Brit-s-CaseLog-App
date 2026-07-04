@@ -298,10 +298,12 @@ export const useAppStore = create<AppState>()(
         // Quick create pattern - direct Dexie + queue
         const now = new Date().toISOString();
         const currentUserId = get().user?.id;
+        const respondentName = `${data.respondentLastName || ''}, ${data.respondentFirstName || ''}`.trim().replace(/^, |, $/, '');
         const newCase = {
           id: crypto.randomUUID(),
           userId: currentUserId,
           ...data,
+          respondentName,
           createdAt: now,
           updatedAt: now,
           synced: false,

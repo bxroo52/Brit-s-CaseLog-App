@@ -36,7 +36,18 @@ function fromSupabaseRow(row: any) {
   if (!row) return row;
   const r = { ...row };
   if (r.user_id !== undefined) r.userId = r.user_id;
-  if (r.respondent_name !== undefined) r.respondentName = r.respondent_name;
+  if (r.respondent_name !== undefined) {
+    r.respondentName = r.respondent_name;
+    // Parse "Last, First" into separate fields for compatibility with UI
+    const parts = r.respondent_name.split(',').map((p: string) => p.trim());
+    if (parts.length >= 2) {
+      r.respondentLastName = parts[0];
+      r.respondentFirstName = parts[1];
+    } else if (parts.length === 1) {
+      r.respondentLastName = parts[0];
+      r.respondentFirstName = '';
+    }
+  }
   if (r.case_number !== undefined) r.caseNumber = r.case_number;
   if (r.assignment_type !== undefined) r.assignmentType = r.assignment_type;
   if (r.hourly_rate !== undefined) r.hourlyRate = r.hourly_rate;

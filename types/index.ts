@@ -10,6 +10,7 @@ export interface Case {
   userId?: string;
   respondentFirstName: string;
   respondentLastName: string;
+  respondentName?: string; // computed "Last, First"
   caseNumber: string;
   assignmentType: AssignmentType;
   status: CaseStatus;
