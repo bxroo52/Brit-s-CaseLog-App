@@ -12,7 +12,8 @@ interface LogTimeModalProps {
 }
 
 export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSuccess }: LogTimeModalProps) {
-  const { getOpenCases, addTimeEntry } = useAppStore();
+  const allCases = useAppStore((state) => state.cases);
+  const addTimeEntry = useAppStore((state) => state.addTimeEntry);
   const [selectedCase, setSelectedCase] = useState('');
   const [selectedActivity, setSelectedActivity] = useState('Contact');
   const [hours, setHours] = useState('1');
@@ -21,7 +22,7 @@ export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSucce
 
   // Use the exact same data source as the Dashboard’s Open Cases section (Zustand store / Dexie)
   // which correctly populates respondent names and case numbers from the main app data.
-  const cases = getOpenCases ? getOpenCases() : [];
+  const cases = allCases.filter((c: any) => c.status === 'Open');
 
   useEffect(() => {
     if (!isOpen) return;
@@ -103,8 +104,7 @@ export default function LogTimeModal({ isOpen, onClose, onOptimisticAdd, onSucce
 
     } catch (err: any) {
       console.error('Failed to log time (store addTimeEntry):', err);
-      // Store already showed error toast and rolled back; show the reported error too for now
-      showToast('Failed to log time. Please try again.', 'error');
+      showToast(`Failed to log time: ${err?.message || err || 'Unknown error'}`, 'error');
       // Note: optimistic temp may remain visible until manual clear or next success
     } finally {
       setLoading(false);

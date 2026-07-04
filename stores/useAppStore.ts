@@ -361,6 +361,38 @@ export const useAppStore = create<AppState>()(
 
       // ---- Time ----
       addTimeEntry: async (data) => {
+        // Validate required fields
+        if (!data.caseId) {
+          const err = new Error('Case is required');
+          console.error('addTimeEntry validation failed:', err);
+          toast.error(err.message);
+          throw err;
+        }
+        if (!data.activityType) {
+          const err = new Error('Activity is required');
+          console.error('addTimeEntry validation failed:', err);
+          toast.error(err.message);
+          throw err;
+        }
+        if (typeof data.billableHours !== 'number' || data.billableHours <= 0) {
+          const err = new Error('Billable Hours must be > 0');
+          console.error('addTimeEntry validation failed:', err);
+          toast.error(err.message);
+          throw err;
+        }
+        if (!data.description || !data.description.trim()) {
+          const err = new Error('Description is required');
+          console.error('addTimeEntry validation failed:', err);
+          toast.error(err.message);
+          throw err;
+        }
+        if (!data.date) {
+          const err = new Error('Date is required');
+          console.error('addTimeEntry validation failed:', err);
+          toast.error(err.message);
+          throw err;
+        }
+
         // In Quick Log save - direct Dexie + queue pattern
         const rounded = roundToNearestTenth(data.billableHours);
         const billingMonth = getBillingMonth(data.date);
@@ -402,7 +434,7 @@ export const useAppStore = create<AppState>()(
           set((state) => ({
             timeEntries: state.timeEntries.filter((t: any) => t.id !== newEntry.id),
           }));
-          const msg = e?.message || 'Failed to save time entry. Please try again.';
+          const msg = e?.message || (typeof e === 'string' ? e : 'Failed to save time entry. Please try again.');
           toast.error(msg);
           throw e;
         }

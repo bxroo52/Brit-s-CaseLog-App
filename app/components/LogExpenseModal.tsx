@@ -12,7 +12,8 @@ interface LogExpenseModalProps {
 }
 
 export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSuccess }: LogExpenseModalProps) {
-  const { getOpenCases, addExpense } = useAppStore();
+  const allCases = useAppStore((state) => state.cases);
+  const addExpense = useAppStore((state) => state.addExpense);
   const [selectedCase, setSelectedCase] = useState('');
   const [expenseType, setExpenseType] = useState('Parking');
   const [amount, setAmount] = useState('');
@@ -20,7 +21,7 @@ export default function LogExpenseModal({ isOpen, onClose, onOptimisticAdd, onSu
   const [loading, setLoading] = useState(false);
 
   // Use the exact same data source as the Dashboard’s Open Cases section and Log Time form (Zustand store / Dexie)
-  const cases = getOpenCases ? getOpenCases() : [];
+  const cases = allCases.filter((c: any) => c.status === 'Open');
 
   useEffect(() => {
     if (!isOpen) return;

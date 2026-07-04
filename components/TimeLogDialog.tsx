@@ -127,6 +127,10 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
       toast.error('Select a case.');
       return;
     }
+    if (!form.activityType) {
+      toast.error('Activity is required.');
+      return;
+    }
     if (!form.date) {
       toast.error('Date is required.');
       return;
@@ -156,8 +160,9 @@ export function TimeLogDialog({ open, onOpenChange, defaultCaseId, existingEntry
       }
       onOpenChange(false);
       resetForm();
-    } catch (e) {
-      toast.error('Could not save time entry.');
+    } catch (e: any) {
+      console.error('Time log failed in TimeLogDialog:', e);
+      toast.error(`Could not save time entry: ${e?.message || e || 'Unknown error'}`);
     }
   };
 

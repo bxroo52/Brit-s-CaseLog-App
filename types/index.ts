@@ -47,7 +47,7 @@ export type ActivityType =
   | 'Wait Time'
   | 'Other';
 
-export type BillingStatus = 'Pending' | 'Billed';
+export type BillingStatus = 'Pending';
 
 export interface TimeEntry {
   id: string;
@@ -65,7 +65,7 @@ export interface TimeEntry {
   startTime?: string;
   endTime?: string;
   billingMonth: string;
-  billingStatus: 'Pending' | 'Billed';
+  billingStatus: 'Pending';
   // Incremental support for official form totals (derive from 'Court' activity or set explicitly)
   isOpenCourt?: boolean;
   updatedAt: string;

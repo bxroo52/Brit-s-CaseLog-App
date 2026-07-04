@@ -1228,7 +1228,7 @@ export default function CaseLogApp() {
                   <TableCell className="text-right font-mono">{formatHours(t.billableHoursRounded)}</TableCell>
                   <TableCell className="text-right font-mono">{formatCurrency(t.amount)}</TableCell>
                   <TableCell>
-                    <Badge variant={t.billingStatus === 'Billed' ? 'secondary' : 'outline'}>{t.billingStatus}</Badge>
+                    <Badge variant="outline">{t.billingStatus}</Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex gap-1 justify-end">

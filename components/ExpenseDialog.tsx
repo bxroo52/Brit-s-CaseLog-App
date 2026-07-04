@@ -21,7 +21,9 @@ interface ExpenseDialogProps {
 }
 
 export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: ExpenseDialogProps) {
-  const { cases, addExpense, editExpense, getCaseById, getOpenCases } = useAppStore();
+  const allCases = useAppStore((state) => state.cases);
+  const addExpense = useAppStore((state) => state.addExpense);
+  const editExpense = useAppStore((state) => state.editExpense);
 
   const [form, setForm] = useState<ExpenseFormData>({
     caseId: defaultCaseId || '',
@@ -31,7 +33,7 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
     amount: 0,
   });
 
-  const openCases = getOpenCases ? getOpenCases() : cases.filter((c) => c.status === 'Open');
+  const openCases = allCases.filter((c) => c.status === 'Open');
 
   // Include the case for the current expense (supports editing closed cases)
   // Ensures dropdown populates with open cases + the relevant case for edit.
@@ -39,7 +41,7 @@ export function ExpenseDialog({ open, onOpenChange, defaultCaseId, existing }: E
     let list = [...openCases];
     const currentId = existing?.caseId || form.caseId || defaultCaseId;
     if (currentId) {
-      const currentCase = cases.find((c) => c.id === currentId);
+      const currentCase = allCases.find((c) => c.id === currentId);
       if (currentCase && !list.some((c) => c.id === currentCase.id)) {
         list = [currentCase, ...list];
       }

@@ -3,7 +3,7 @@
 // Cache versioned + skipWaiting + clients.claim for immediate activation on iOS PWA.
 // Clears old caches. Data still handled via Dexie + sync (offline first).
 
-const CACHE_VERSION = 'caselog-v5';
+const CACHE_VERSION = 'caselog-v6';
 const CACHE_NAME = CACHE_VERSION;
 
 const APP_SHELL = [
