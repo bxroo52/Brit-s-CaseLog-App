@@ -1235,37 +1235,33 @@ export default function CaseLogApp() {
         onClearOptimistic={() => setOptimisticEntries([])} 
       />
 
-      <div className="rounded-xl border overflow-x-auto">
-        <Table>
+      <div className="rounded-xl border">
+        <Table className="text-xs">
           <TableHeader>
             <TableRow>
-              <TableHead>Date</TableHead>
-              <TableHead>Case</TableHead>
-              <TableHead>Activity</TableHead>
-              <TableHead className="text-right">Hours</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead></TableHead>
+              <TableHead className="p-1">Date</TableHead>
+              <TableHead className="p-1">Case</TableHead>
+              <TableHead className="p-1">Activity</TableHead>
+              <TableHead className="p-1 text-right">Hours</TableHead>
+              <TableHead className="p-1 text-right">Amount</TableHead>
+              <TableHead className="p-1 w-8"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {timeEntries.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-10 text-muted-foreground">No time logged. Future You is judging you.</TableCell></TableRow>}
+            {timeEntries.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">No time logged. Future You is judging you.</TableCell></TableRow>}
             {[...timeEntries].sort((a, b) => b.date.localeCompare(a.date)).map((t) => {
               const c = getCaseById(t.caseId);
               return (
                 <TableRow key={t.id}>
-                  <TableCell>{formatDate(t.date, 'MMM dd')}</TableCell>
-                  <TableCell className="font-medium text-sm">{`${c?.respondentFirstName} ${c?.respondentLastName}`}<div className="text-[10px] text-muted-foreground">{c?.caseNumber}</div></TableCell>
-                  <TableCell>{t.activityType}</TableCell>
-                  <TableCell className="text-right font-mono">{formatHours(t.billableHoursRounded)}</TableCell>
-                  <TableCell className="text-right font-mono">{formatCurrency(t.amount)}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{t.billingStatus}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="p-1">{formatDate(t.date, 'M/d')}</TableCell>
+                  <TableCell className="p-1 font-medium text-[10px]">{`${c?.respondentFirstName} ${c?.respondentLastName}`}<div className="text-[8px] text-muted-foreground">{c?.caseNumber}</div></TableCell>
+                  <TableCell className="p-1 text-[10px]">{t.activityType}</TableCell>
+                  <TableCell className="p-1 text-right font-mono text-[10px]">{formatHours(t.billableHoursRounded)}</TableCell>
+                  <TableCell className="p-1 text-right font-mono text-[10px]">{formatCurrency(t.amount)}</TableCell>
+                  <TableCell className="p-1 text-right">
                     <div className="flex gap-1 justify-end">
-                      <Button variant="ghost" size="icon" onClick={() => editTimeEntry(t)}><Edit2 className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteTime(t)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => editTimeEntry(t)}><Edit2 className="h-3 w-3" /></Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeleteTime(t)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
                     </div>
                   </TableCell>
                 </TableRow>

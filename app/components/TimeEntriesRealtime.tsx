@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { showToast } from './Toast';
 import EditTimeEntryModal from './EditTimeEntryModal';
+import { formatDate } from '@/lib/format';
 
 interface TimeEntriesRealtimeProps {
   optimisticEntries?: any[];
@@ -95,32 +96,30 @@ export default function TimeEntriesRealtime({ optimisticEntries = [], onClearOpt
 
         {allEntries.map((entry, index) => {
           const isOptimistic = entry._optimistic;
+          const amount = (entry.amount ?? entry.totalAmount ?? ((entry.hours || 0) * (entry.rate || 50))).toFixed(2);
           return (
             <div 
               key={entry.id || index} 
-              className={`flex justify-between items-center py-4 border-b border-zinc-800 ${isOptimistic ? 'opacity-70' : ''}`}
+              className={`py-2 border-b border-zinc-800 text-xs ${isOptimistic ? 'opacity-70' : ''}`}
             >
-              <div>
-                <div className="font-medium flex items-center gap-2">
-                  {entry.cases?.case_number} {entry.cases?.title}
-                  {isOptimistic && <span className="text-xs bg-yellow-600 px-2 py-0.5 rounded">Saving...</span>}
-                </div>
-                <div className="text-sm text-zinc-400">{entry.activity_type} • {entry.hours} hrs</div>
-                {entry.description && <div className="text-xs text-zinc-500 mt-1">{entry.description}</div>}
+              <div className="flex justify-between text-[10px] text-zinc-500">
+                <span>{formatDate(entry.date, 'M/d')}</span>
+                <span className="font-semibold text-zinc-300">${amount}</span>
               </div>
-
-              <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <div className="font-semibold">${(entry.amount ?? entry.totalAmount ?? ((entry.hours || 0) * (entry.rate || 50))).toFixed(2)}</div>
-                </div>
-
+              <div className="font-medium truncate">
+                {entry.cases?.case_number} {entry.cases?.title}
+                {isOptimistic && <span className="text-[8px] ml-1 bg-yellow-600 px-1 rounded">Saving</span>}
+              </div>
+              <div className="text-[10px] text-zinc-400 flex justify-between">
+                <span>{entry.activity_type} • {entry.hours} hrs</span>
                 {!isOptimistic && (
-                  <>
-                    <button onClick={() => setEditingEntry(entry)} className="text-blue-400 text-sm px-3 py-1">Edit</button>
-                    <button onClick={() => handleDelete(entry.id, isOptimistic)} className="text-red-400 text-sm px-3 py-1">Delete</button>
-                  </>
+                  <span className="flex gap-2">
+                    <button onClick={() => setEditingEntry(entry)} className="text-blue-400">Edit</button>
+                    <button onClick={() => handleDelete(entry.id, isOptimistic)} className="text-red-400">Del</button>
+                  </span>
                 )}
               </div>
+              {entry.description && <div className="text-[10px] text-zinc-500 truncate">{entry.description}</div>}
             </div>
           );
         })}
