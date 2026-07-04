@@ -139,6 +139,10 @@ interface AppState {
   syncNow: () => Promise<void>;
   clearLocalData: () => Promise<void>;
 
+  // Debug: explore/clear IndexedDB
+  debugInspectDB: () => Promise<any>;
+  debugClearDB: () => Promise<void>;
+
   // Auth
   initAuth: () => Promise<void>;
   signUp: (email: string, password: string, userId?: string) => Promise<void>;
@@ -642,6 +646,16 @@ export const useAppStore = create<AppState>()(
         await db.cases.filter((c: any) => !c.userId).modify({ userId: uid, updatedAt: now, synced: false });
         await db.timeEntries.filter((e: any) => !e.userId).modify({ userId: uid, updatedAt: now, synced: false });
         await db.expenses.filter((e: any) => !e.userId).modify({ userId: uid, updatedAt: now, synced: false });
+
+        // Migrate legacy profile (id='profile') to this user's profile id for persistence across logins
+        const legacyProfile = await db.profile.get('profile');
+        if (legacyProfile) {
+          const userProfile = await db.profile.get(uid);
+          if (!userProfile || !userProfile.name) {
+            await db.profile.put({ ...legacyProfile, id: uid });
+            // keep legacy or delete; keep for safety
+          }
+        }
       },
 
       signUp: async (email, password, userId) => {
@@ -768,6 +782,37 @@ export const useAppStore = create<AppState>()(
         announce('Local data wiped.', false);
       },
 
+      debugInspectDB: async () => {
+        const tables: Record<string, number> = {};
+        for (const table of db.tables) {
+          try {
+            tables[table.name] = await table.count();
+          } catch (e) {
+            tables[table.name] = -1;
+          }
+        }
+        console.log('[CaseLog Debug] IndexedDB tables:', tables);
+        const summary = Object.entries(tables).map(([k, v]) => `${k}: ${v}`).join(' | ');
+        toast(`IndexedDB: ${summary} (see console for details)`);
+        // Also log sample for profile
+        try {
+          const prof = await db.profile.toArray();
+          console.log('[CaseLog Debug] Profile records:', prof);
+        } catch {}
+        return tables;
+      },
+
+      debugClearDB: async () => {
+        if (!confirm('DANGER: This will DELETE the entire IndexedDB (all tables including profile). App will reload. Continue?')) return;
+        try {
+          await db.delete();
+          toast('IndexedDB cleared. Reloading...');
+          setTimeout(() => window.location.reload(), 500);
+        } catch (e) {
+          toast.error('Failed to clear DB: ' + e);
+        }
+      },
+
       initAuth: async () => {
         if (!isSupabaseConfigured || !supabase) {
           // For offline-only, allow demo mode or require config? For now, require Supabase for auth.
@@ -794,7 +839,7 @@ export const useAppStore = create<AppState>()(
           } else {
             set({ user: null, isAuthenticated: false });
             // Clear in-memory on signout via listener
-            set({ cases: [], timeEntries: [], expenses: [] });
+            set({ cases: [], timeEntries: [], expenses: [], profile: null });
           }
         });
       },

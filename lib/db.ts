@@ -92,22 +92,27 @@ export async function createCase(
     synced: false,
     isDeleted: false,
   } as Case;
-  await db.cases.add(newCase);
+  await db.transaction('rw', db.cases, async () => {
+    await db.cases.add(newCase);
+  });
   return newCase;
 }
 
 export async function updateCase(id: string, updates: Partial<Omit<Case, 'id' | 'createdAt'>>): Promise<Case> {
-  const existing = await db.cases.get(id);
-  if (!existing) throw new Error('Case not found');
+  let updated: Case;
+  await db.transaction('rw', db.cases, async () => {
+    const existing = await db.cases.get(id);
+    if (!existing) throw new Error('Case not found');
 
-  const updated: Case = {
-    ...existing,
-    ...updates,
-    updatedAt: new Date().toISOString(),
-    synced: false,
-  };
-  await db.cases.put(updated);
-  return updated;
+    updated = {
+      ...existing,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+      synced: false,
+    };
+    await db.cases.put(updated);
+  });
+  return updated!;
 }
 
 export async function getCase(id: string): Promise<Case | undefined> {
@@ -139,9 +144,11 @@ export async function getOpenCases(userId?: string): Promise<Case[]> {
 export async function deleteCase(id: string): Promise<void> {
   const now = new Date().toISOString();
 
-  await db.cases.where({ id }).modify({ isDeleted: true, updatedAt: now, synced: false });
-  await db.timeEntries.where('caseId').equals(id).modify({ isDeleted: true, updatedAt: now, synced: false });
-  await db.expenses.where('caseId').equals(id).modify({ isDeleted: true, updatedAt: now, synced: false });
+  await db.transaction('rw', db.cases, db.timeEntries, db.expenses, async () => {
+    await db.cases.where({ id }).modify({ isDeleted: true, updatedAt: now, synced: false });
+    await db.timeEntries.where('caseId').equals(id).modify({ isDeleted: true, updatedAt: now, synced: false });
+    await db.expenses.where('caseId').equals(id).modify({ isDeleted: true, updatedAt: now, synced: false });
+  });
 }
 
 // ---- Time Entries ----
@@ -149,66 +156,70 @@ export async function deleteCase(id: string): Promise<void> {
 export async function createTimeEntry(
   data: Omit<TimeEntry, 'id' | 'billableHoursRounded' | 'amount' | 'billingMonth' | 'billingStatus'> & { userId?: string }
 ): Promise<TimeEntry> {
-  const rounded = roundToNearestTenth(data.billableHours);
-  const billingMonth = getBillingMonth(data.date);
+  return await db.transaction('rw', db.timeEntries, db.cases, async () => {
+    const rounded = roundToNearestTenth(data.billableHours);
+    const billingMonth = getBillingMonth(data.date);
 
-  // Prefer passed activityRate or hourlyRate (for new feature), fallback to case or default
-  let rate = (data as any).activityRate ?? (data as any).hourlyRate ?? 0;
-  if (!rate) {
-    const caseRecord = await db.cases.get(data.caseId);
-    rate = caseRecord?.hourlyRate ?? DEFAULT_RATE;
-  }
-  const amount = calculateAmount(rounded, rate);
+    // Prefer passed activityRate or hourlyRate (for new feature), fallback to case or default
+    let rate = (data as any).activityRate ?? (data as any).hourlyRate ?? 0;
+    if (!rate) {
+      const caseRecord = await db.cases.get(data.caseId);
+      rate = caseRecord?.hourlyRate ?? DEFAULT_RATE;
+    }
+    const amount = calculateAmount(rounded, rate);
 
-  const entry: TimeEntry = {
-    ...data,
-    id: crypto.randomUUID(),
-    billableHoursRounded: rounded,
-    hourlyRate: rate,
-    amount,
-    activityRate: (data as any).activityRate ?? rate,
-    totalAmount: (data as any).totalAmount ?? amount,
-    billingMonth,
-    billingStatus: 'Pending',
-    isOpenCourt: data.activityType === 'Court' || (data as any).isOpenCourt,
-    updatedAt: new Date().toISOString(),
-    synced: false,
-    isDeleted: false,
-  };
+    const entry: TimeEntry = {
+      ...data,
+      id: crypto.randomUUID(),
+      billableHoursRounded: rounded,
+      hourlyRate: rate,
+      amount,
+      activityRate: (data as any).activityRate ?? rate,
+      totalAmount: (data as any).totalAmount ?? amount,
+      billingMonth,
+      billingStatus: 'Pending',
+      isOpenCourt: data.activityType === 'Court' || (data as any).isOpenCourt,
+      updatedAt: new Date().toISOString(),
+      synced: false,
+      isDeleted: false,
+    };
 
-  await db.timeEntries.add(entry);
-  return entry;
+    await db.timeEntries.add(entry);
+    return entry;
+  });
 }
 
 export async function updateTimeEntry(id: string, updates: Partial<TimeEntry>): Promise<TimeEntry> {
-  const existing = await db.timeEntries.get(id);
-  if (!existing) throw new Error('Time entry not found');
+  return await db.transaction('rw', db.timeEntries, db.cases, async () => {
+    const existing = await db.timeEntries.get(id);
+    if (!existing) throw new Error('Time entry not found');
 
-  let newData = { ...existing, ...updates };
+    let newData = { ...existing, ...updates };
 
-  // Recompute rounded, amount if hours/date/rate changed. Use activityRate if present.
-  if (updates.billableHours !== undefined || updates.date !== undefined || updates.hourlyRate !== undefined || updates.activityRate !== undefined) {
-    const rounded = roundToNearestTenth(newData.billableHours);
-    const billingMonth = getBillingMonth(newData.date);
-    const rate = newData.activityRate ?? newData.hourlyRate ?? DEFAULT_RATE;
+    // Recompute rounded, amount if hours/date/rate changed. Use activityRate if present.
+    if (updates.billableHours !== undefined || updates.date !== undefined || updates.hourlyRate !== undefined || updates.activityRate !== undefined) {
+      const rounded = roundToNearestTenth(newData.billableHours);
+      const billingMonth = getBillingMonth(newData.date);
+      const rate = newData.activityRate ?? newData.hourlyRate ?? DEFAULT_RATE;
 
-    newData.billableHoursRounded = rounded;
-    newData.billingMonth = billingMonth;
-    newData.hourlyRate = rate;
-    newData.amount = calculateAmount(rounded, rate);
-    newData.activityRate = rate;
-    newData.totalAmount = calculateAmount(rounded, rate);
-    newData.isOpenCourt = newData.activityType === 'Court' || newData.isOpenCourt;
-  }
+      newData.billableHoursRounded = rounded;
+      newData.billingMonth = billingMonth;
+      newData.hourlyRate = rate;
+      newData.amount = calculateAmount(rounded, rate);
+      newData.activityRate = rate;
+      newData.totalAmount = calculateAmount(rounded, rate);
+      newData.isOpenCourt = newData.activityType === 'Court' || newData.isOpenCourt;
+    }
 
-  const updated: TimeEntry = {
-    ...newData,
-    updatedAt: new Date().toISOString(),
-    synced: false,
-  } as TimeEntry;
+    const updated: TimeEntry = {
+      ...newData,
+      updatedAt: new Date().toISOString(),
+      synced: false,
+    } as TimeEntry;
 
-  await db.timeEntries.put(updated);
-  return updated;
+    await db.timeEntries.put(updated);
+    return updated;
+  });
 }
 
 export async function getTimeEntriesForCase(caseId: string): Promise<TimeEntry[]> {
@@ -259,7 +270,9 @@ export async function getAllTimeForMonth(billingMonth: string, userId?: string):
 
 export async function deleteTimeEntry(id: string): Promise<void> {
   const now = new Date().toISOString();
-  await db.timeEntries.where({ id }).modify({ isDeleted: true, updatedAt: now, synced: false });
+  await db.transaction('rw', db.timeEntries, async () => {
+    await db.timeEntries.where({ id }).modify({ isDeleted: true, updatedAt: now, synced: false });
+  });
 }
 
 // ---- Expenses ----
@@ -272,21 +285,26 @@ export async function createExpense(data: Omit<Expense, 'id'> & { userId?: strin
     synced: false,
     isDeleted: false,
   };
-  await db.expenses.add(expense);
+  await db.transaction('rw', db.expenses, async () => {
+    await db.expenses.add(expense);
+  });
   return expense;
 }
 
 export async function updateExpense(id: string, updates: Partial<Expense>): Promise<Expense> {
-  const existing = await db.expenses.get(id);
-  if (!existing) throw new Error('Expense not found');
-  const updated: Expense = {
-    ...existing,
-    ...updates,
-    updatedAt: new Date().toISOString(),
-    synced: false,
-  };
-  await db.expenses.put(updated);
-  return updated;
+  let updated: Expense;
+  await db.transaction('rw', db.expenses, async () => {
+    const existing = await db.expenses.get(id);
+    if (!existing) throw new Error('Expense not found');
+    updated = {
+      ...existing,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+      synced: false,
+    };
+    await db.expenses.put(updated);
+  });
+  return updated!;
 }
 
 export async function getExpensesForCase(caseId: string): Promise<Expense[]> {
@@ -317,7 +335,9 @@ export async function getExpensesForMonth(billingMonth: string, userId?: string)
 
 export async function deleteExpense(id: string): Promise<void> {
   const now = new Date().toISOString();
-  await db.expenses.where({ id }).modify({ isDeleted: true, updatedAt: now, synced: false });
+  await db.transaction('rw', db.expenses, async () => {
+    await db.expenses.where({ id }).modify({ isDeleted: true, updatedAt: now, synced: false });
+  });
 }
 
 // ---- Profile (singleton) ----
@@ -349,15 +369,18 @@ export async function getUserProfile(userId?: string): Promise<UserProfile> {
 
 export async function updateUserProfile(updates: Partial<Omit<UserProfile, 'id'>>, userId?: string): Promise<UserProfile> {
   const profileId = userId || DEFAULT_PROFILE_ID;
-  const existing = await getUserProfile(profileId);
-  const updated: UserProfile = {
-    ...existing,
-    ...updates,
-    id: profileId,
-    updatedAt: new Date().toISOString(),
-  };
-  await db.profile.put(updated);
-  return updated;
+  let updated: UserProfile;
+  await db.transaction('rw', db.profile, async () => {
+    const existing = await getUserProfile(profileId);
+    updated = {
+      ...existing,
+      ...updates,
+      id: profileId,
+      updatedAt: new Date().toISOString(),
+    };
+    await db.profile.put(updated);
+  });
+  return updated!;
 }
 
 // ---- Activity Rates (per user, per activity) ----

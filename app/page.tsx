@@ -387,6 +387,8 @@ export default function CaseLogApp() {
     editCase,
     pendingChangesCount,
     clearLocalData,
+    debugInspectDB,
+    debugClearDB,
     user,
     isAuthenticated,
     signUp,
@@ -506,9 +508,16 @@ export default function CaseLogApp() {
         return;
       case 'Advanced':
         openAccountModal(
-          'Advanced',
+          'Advanced (Debug)',
           <div className="space-y-3 text-sm">
-            <p>Advanced options (coming in future releases):</p>
+            <p>Temporary debug tools for IndexedDB / schema issues:</p>
+            <div className="flex flex-col gap-2 pt-2">
+              <Button size="sm" variant="outline" onClick={async () => { await debugInspectDB?.(); }}>Inspect IndexedDB (logs + toast)</Button>
+              <Button size="sm" variant="destructive" onClick={async () => { await debugClearDB?.(); }}>Clear Entire IndexedDB (reloads app)</Button>
+            </div>
+            <p className="text-xs text-muted-foreground pt-2">Also available as console: window.__caseLogDebug?.inspectDB()</p>
+            <hr className="my-2 border-zinc-800" />
+            <p>Future options (not yet implemented):</p>
             <ul className="list-disc pl-5">
               <li>Data export / import (CSV, JSON, full backup)</li>
               <li>Conflict resolution for sync</li>
@@ -629,6 +638,14 @@ export default function CaseLogApp() {
 
   // Dedicated Activity Rates dialog
   const [activityRatesOpen, setActivityRatesOpen] = useState(false);
+
+  // Expose debug for console (temp for IndexedDB exploration)
+  if (typeof window !== 'undefined') {
+    (window as any).__caseLogDebug = {
+      inspectDB: () => debugInspectDB?.(),
+      clearDB: () => debugClearDB?.(),
+    };
+  }
 
   // Helper: robust first name extraction from profile.name (handles "First Last", "Last, First", etc.)
   const getFirstName = (fullName?: string | null): string | null => {
@@ -874,31 +891,29 @@ export default function CaseLogApp() {
   // Dashboard cards
   const Dashboard = () => (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          {/* Profile photo next to greeting name - horizontal layout */}
-          {profile?.photoDataUrl ? (
-            <img
-              src={profile.photoDataUrl}
-              alt="Profile"
-              className="w-11 h-11 rounded-full object-cover border border-zinc-800 flex-shrink-0"
-            />
-          ) : (
-            <div className="w-11 h-11 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-lg flex-shrink-0">
-              {profile?.name ? profile.name.split(/\s+/).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase() : '👤'}
-            </div>
-          )}
-          <div className="flex flex-col">
-            {(() => {
-              const first = getFirstName(profile?.name);
-              return (
-                <h1 className="text-3xl font-semibold tracking-tighter">
-                  {first ? `Welcome back, ${first}.` : 'Welcome back.'}
-                </h1>
-              );
-            })()}
-            <p className="text-muted-foreground">Tiny logs beat giant catch-up sessions.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col">
+          <div className="flex items-center gap-3">
+            {/* Profile photo next to greeting name - horizontal layout */}
+            {profile?.photoDataUrl ? (
+              <img
+                src={profile.photoDataUrl}
+                alt="Profile"
+                className="w-11 h-11 rounded-full object-cover border border-zinc-800 flex-shrink-0"
+              />
+            ) : (
+              <div className="w-11 h-11 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-lg flex-shrink-0">
+                {profile?.name ? profile.name.split(/\s+/).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase() : '👤'}
+              </div>
+            )}
+            <h1 className="text-3xl font-semibold tracking-tighter">
+              {(() => {
+                const first = getFirstName(profile?.name);
+                return first ? `Welcome back, ${first}.` : 'Welcome back.';
+              })()}
+            </h1>
           </div>
+          <p className="text-muted-foreground mt-1 ml-[3.5rem]">Tiny logs beat giant catch-up sessions.</p>
         </div>
         <div className="flex gap-2">
           <Button onClick={() => quickLogTime()} className="gap-2">
